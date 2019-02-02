@@ -62,15 +62,18 @@ graphics.GraphicsRenderer('IPV')  # sets graphics.gRenderer
 graphics.plot(dl, limits=[-0.5, 0.5, -0.5, 0.5, -0.5, 0.5])
 
 # Define transform function to animate DisplayListItems.
-def transFunc(t):
+def animFunc(n, tstep):
     """
-    Sample transformation function to rotate display list
-    'surface' items about their x-axis.
-    :param t: time (sec)
+    Sample transformation function to rotate display list items about their x-axis.
+    :param n: number of step (starts at 0)
+    :param tstep: time step interval (sec)
     :return: a homogeneous transform matrix
     """
+    t = n*tstep
     return tr.trotx(2.0*t, unit="deg")
 
 # Give graphics renderer the DisplayList to animate.
-graphics.animate(dl, transFunc, duration=5.0, frame_rate=30, \
+fps = 30
+tstep = 1.0/float(fps)
+graphics.animate(dl, animFunc, func_args=[tstep], duration=5.0, frame_rate=fps, \
                      limits=[-0.5, 0.5, -0.5, 0.5, -0.5, 0.5])
