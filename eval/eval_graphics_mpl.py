@@ -45,4 +45,4 @@ if __name__ == '__main__':
     f = np.concatenate((d, b, a, e, c, d), axis=1)
 
     robot.animate(stances=f, unit='deg', timer_rate=60, gif="Puma560", 
-                             frame_rate=30, dispMode='VTK', limits=None)
+                             frame_rate=30, dispMode='IPY', limits=None)
