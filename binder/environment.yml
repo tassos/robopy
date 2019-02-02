@@ -12,6 +12,7 @@ dependencies:
       - imageio
       - numpy
       - numpy-stl
+      - trimesh
       - scipy
       - scikit-image>=0.13
       - requests
