@@ -8,7 +8,75 @@ from . import check_args
 from ..tests import test_transforms
 from . import common
 import unittest
-import vtk
+
+try:
+    from colored import fg, bg, attr
+    _color = True
+except:
+    _color = False
+
+###import vtk
+
+class RTBMatrix(np.ndarray):
+    def __new__(cls, input_array):
+        obj = np.asarray(input_array).view(cls)
+        return obj
+
+    def __mul__(self, other):
+        return self.dot(other)
+
+    def to_ndarray(self):
+        return np.asarray(self)
+
+    def __str__(self):
+        output_str = ''
+
+        if self.ndim == 3:
+            # sequence case
+            for count, X in enumerate(self):
+                # add separator lines and the index
+                if _color:
+                    output_str += fg('red') + '[{:d}] =\n'.format(count) + attr(0) + str(X)
+                else:
+                    output_str += '[{:d}] =\n'.format(count) + str(X)
+        else:
+            # single matrix case
+            for row in self:
+                # format the whole row
+                s = '  ' + ' '.join(['{:=10g}'.format(x) for x in row]) + '  '
+
+                ## add color if available
+                # see https://pypi.org/project/colored for color codes
+                # grey_XX where XX=0 is black, XX=100 is white
+                if _color:
+                    s = fg('black') + bg('grey_93') + s + attr(0)
+                output_str += s + '\n'
+        
+        return output_str
+
+def inputs(arg, func):
+    ### use np.flatten
+    ### use np.isscalar
+    
+    if np.isscalar(arg):
+        # arg is a numeric scalar
+        out = RTBMatrix(func(arg))
+    else:
+        # if ndarray, flatten to 1D. Allows us to handle shapes like (N,), (,N), (1,N), (N,1)
+        # for general matrix with shape (N,M) elements are taken in row major order from args
+        # and a 3D ndarray is returned, the first index is the position in the sequence.
+        if isinstance(arg, np.ndarray):
+            arg = arg.flatten()
+
+        # arg is hopefully something iterable
+        if not hasattr(arg, '__iter__'):
+            raise ValueError(' Argument must be iterable: list, tuple, ndarray')
+        out = []
+        for x in arg:
+            out.append(func(x))
+        out = RTBMatrix(np.stack(out, axis=0))
+        
+    return out
 
 
 # ---------------------------------------------------------------------------------------#
@@ -23,15 +91,28 @@ def rotx(theta, unit="rad"):
     rotx(THETA) is an SO(3) rotation matrix (3x3) representing a rotation
     of THETA radians about the x-axis
     rotx(THETA, "deg") as above but THETA is in degrees
+
+    THETA is a scalar (float or int), a 1D sequence (list, tuple or ndarray) or any
+    other kind of iterable object that returns a sequence of scalars.
     """
     check_args.unit_check(unit)
     if unit == "deg":
-        theta = theta * math.pi / 180
-    ct = math.cos(theta)
-    st = math.sin(theta)
-    mat = np.matrix([[1, 0, 0], [0, ct, -st], [0, st, ct]])
-    mat = np.asmatrix(mat.round(15))
-    return mat
+        conv = math.pi / 180
+    else:
+        conv = 1
+
+    def _rotx(theta, conv):
+        theta *= conv
+        ct = math.cos(theta)
+        st = math.sin(theta)
+        mat = np.array([
+            [1, 0, 0],
+            [0, ct, -st],
+            [0, st, ct]
+        ])
+        return mat.round(15)
+
+    return inputs(theta, lambda x: _rotx(x, conv))
 
 
 # ---------------------------------------------------------------------------------------#
@@ -96,7 +177,10 @@ def trotx(theta, unit="rad", xyz=[0, 0, 0]):
     trotx(THETA, 'rad', [x,y,z]) as above with translation of [x,y,z]
     """
     check_args.unit_check(unit)
-    tm = rotx(theta, unit)
+    if unit == "deg":
+        theta = theta * math.pi / 180
+        unit = "rad"
+    tm = rotx(theta, unit=unit)
     tm = np.r_[tm, np.zeros((1, 3))]
     mat = np.c_[tm, np.array([[xyz[0]], [xyz[1]], [xyz[2]], [1]])]
     mat = np.asmatrix(mat.round(15))
@@ -119,7 +203,10 @@ def troty(theta, unit="rad", xyz=[0, 0, 0]):
     troty(THETA, 'rad', [x,y,z]) as above with translation of [x,y,z]
     """
     check_args.unit_check(unit)
-    tm = roty(theta, unit)
+    if unit == "deg":
+        theta = theta * math.pi / 180
+        unit = "rad"
+    tm = roty(theta, unit=unit)
     tm = np.r_[tm, np.zeros((1, 3))]
     mat = np.c_[tm, np.array([[xyz[0]], [xyz[1]], [xyz[2]], [1]])]
     mat = np.asmatrix(mat.round(15))
@@ -142,7 +229,10 @@ def trotz(theta, unit="rad", xyz=[0, 0, 0]):
     trotz(THETA, 'rad', [x,y,z]) as above with translation of [x,y,z]
     """
     check_args.unit_check(unit)
-    tm = rotz(theta, unit)
+    if unit == "deg":
+        theta = theta * math.pi / 180
+        unit = "rad"
+    tm = rotz(theta, unit=unit)
     tm = np.r_[tm, np.zeros((1, 3))]
     mat = np.c_[tm, np.array([[xyz[0]], [xyz[1]], [xyz[2]], [1]])]
     mat = np.asmatrix(mat.round(15))
@@ -718,6 +808,7 @@ def tr2angvec(tr, unit='rad'):
                 if unit == 'deg':
                     theta[i, 0] = theta[i, 0] * 180 / math.pi
                 print('Rotation: ', theta[i, 0], unit, 'x', '[', n[i, :], ']')
+           
             else:
                 raise TypeError('Matrix in not orthonormal.')
     else:
@@ -751,23 +842,25 @@ def tr2eul(tr, unit='rad', flip=False):
             eul[i, :] = tr2eul(tr[i, :, :])
         return eul
     else:
-        eul = np.zeros([1, 3])
+        eul = np.zeros(3)
 
-    if abs(tr[0, 2]) < np.spacing([1])[0] and abs(tr[1, 2]) < np.spacing([1])[0]:
-        eul[0, 0] = 0
+    eps = np.finfo(tr.dtype).eps  # precision for this type of matrix
+
+    if abs(tr[0, 2]) < eps and abs(tr[1, 2]) < eps:
+        eul[0] = 0
         sp = 0
         cp = 0
-        eul[0, 1] = math.atan2(cp * tr[0, 2] + sp * tr[1, 2], tr[2, 2])
-        eul[0, 2] = math.atan2(-sp * tr[0, 0] + cp * tr[1, 0], -sp * tr[0, 1] + cp * tr[1, 1])
+        eul[1] = math.atan2(cp * tr[0, 2] + sp * tr[1, 2], tr[2, 2])
+        eul[2] = math.atan2(-sp * tr[0, 0] + cp * tr[1, 0], -sp * tr[0, 1] + cp * tr[1, 1])
     else:
         if flip:
-            eul[0, 0] = math.atan2(-tr[1, 2], -tr[0, 2])
+            eul[0] = math.atan2(-tr[1, 2], -tr[0, 2])
         else:
-            eul[0, 0] = math.atan2(tr[1, 2], tr[0, 2])
-        sp = math.sin(eul[0, 0])
-        cp = math.cos(eul[0, 0])
-        eul[0, 1] = math.atan2(cp * tr[0, 2] + sp * tr[1, 2], tr[2, 2])
-        eul[0, 2] = math.atan2(-sp * tr[0, 0] + cp * tr[1, 0], -sp * tr[0, 1] + cp * tr[1, 1])
+            eul[0] = math.atan2(tr[1, 2], tr[0, 2])
+        sp = math.sin(eul[00])
+        cp = math.cos(eul[0])
+        eul[1] = math.atan2(cp * tr[0, 2] + sp * tr[1, 2], tr[2, 2])
+        eul[2] = math.atan2(-sp * tr[0, 0] + cp * tr[1, 0], -sp * tr[0, 1] + cp * tr[1, 1])
 
     if unit == 'deg':
         eul = eul * 180 / math.pi
@@ -804,45 +897,47 @@ def tr2rpy(tr, unit='rad', order='zyx'):
             rpy[i, :] = tr2rpy(tr[i, :, :])
         return rpy
     else:
-        rpy = np.zeros([1, 3])
+        rpy = np.zeros(3)
+
+    eps = np.finfo(tr.dtype).eps  # precision for this type of matrix
 
     if common.isrot(tr) or common.ishomog(tr, dim=[4, 4]):
         if order == 'xyz' or order == 'arm':
-            if abs(abs(tr[0, 2]) - 1) < np.spacing([1])[0]:
-                rpy[0, 0] = 0
-                rpy[0, 1] = math.asin(tr[0, 2])
+            if abs(abs(tr[0, 2]) - 1) < eps:
+                rpy[0] = 0
+                rpy[1] = math.asin(tr[0, 2])
                 if tr[0, 2] > 0:
-                    rpy[0, 2] = math.atan2(tr[2, 1], tr[1, 1])
+                    rpy[2] = math.atan2(tr[2, 1], tr[1, 1])
                 else:
-                    rpy[0, 2] = -math.atan2(tr[1, 0], tr[2, 0])
+                    rpy[2] = -math.atan2(tr[1, 0], tr[2, 0])
             else:
-                rpy[0, 0] = -math.atan2(tr[0, 1], tr[0, 0])
-                rpy[0, 1] = math.atan2(tr[0, 2] * math.cos(rpy[0, 0]), tr[0, 0])
-                rpy[0, 2] = -math.atan2(tr[1, 2], tr[2, 2])
+                rpy[0] = -math.atan2(tr[0, 1], tr[0, 0])
+                rpy[1] = math.atan2(tr[0, 2] * math.cos(rpy[0, 0]), tr[0, 0])
+                rpy[2] = -math.atan2(tr[1, 2], tr[2, 2])
         if order == 'zyx' or order == 'vehicle':
-            if abs(abs(tr[2, 0]) - 1) < np.spacing([1])[0]:
-                rpy[0, 0] = 0
-                rpy[0, 1] = -math.asin(tr[2, 0])
+            if abs(abs(tr[2, 0]) - 1) < eps:
+                rpy[0] = 0
+                rpy[1] = -math.asin(tr[2, 0])
                 if tr[2, 0] < 0:
-                    rpy[0, 2] = -math.atan2(tr[0, 1], tr[0, 2])
+                    rpy[2] = -math.atan2(tr[0, 1], tr[0, 2])
                 else:
-                    rpy[0, 2] = math.atan2(-tr[0, 1], -tr[0, 2])
+                    rpy[2] = math.atan2(-tr[0, 1], -tr[0, 2])
             else:
-                rpy[0, 0] = math.atan2(tr[2, 1], tr[2, 2])
-                rpy[0, 1] = math.atan2(-tr[2, 0] * math.cos(rpy[0, 0]), tr[2, 2])
-                rpy[0, 2] = math.atan2(tr[1, 0], tr[0, 0])
+                rpy[0] = math.atan2(tr[2, 1], tr[2, 2])
+                rpy[1] = math.atan2(-tr[2, 0] * math.cos(rpy[0]), tr[2, 2])
+                rpy[2] = math.atan2(tr[1, 0], tr[0, 0])
         if order == 'yxz' or order == 'camera':
-            if abs(abs(tr[1, 2]) - 1) < np.spacing([1])[0]:
-                rpy[0, 0] = 0
-                rpy[0, 1] = -math.asin(tr[1, 2])
+            if abs(abs(tr[1, 2]) - 1) < eps:
+                rpy[0] = 0
+                rpy[1] = -math.asin(tr[1, 2])
                 if tr[1, 2] < 0:
-                    rpy[0, 2] = -math.atan2(tr[2, 0], tr[0, 0])
+                    rpy[2] = -math.atan2(tr[2, 0], tr[0, 0])
                 else:
-                    rpy[0, 2] = math.atan2(-tr[2, 0], -tr[2, 1])
+                    rpy[2] = math.atan2(-tr[2, 0], -tr[2, 1])
             else:
-                rpy[0, 0] = math.atan2(tr[1, 0], tr[1, 1])
-                rpy[0, 1] = math.atan2(-math.cos(rpy[0, 0]) * tr[1, 2], tr[1, 1])
-                rpy[0, 2] = math.atan2(tr[0, 2], tr[2, 2])
+                rpy[0] = math.atan2(tr[1, 0], tr[1, 1])
+                rpy[1] = math.atan2(-math.cos(rpy[0]) * tr[1, 2], tr[1, 1])
+                rpy[2] = math.atan2(tr[0, 2], tr[2, 2])
     else:
         raise TypeError('Argument must be a 3x3 or 4x4 matrix.')
 
@@ -913,7 +1008,7 @@ def trexp(S, theta=None):
             w = S
         else:
             raise AttributeError("Bad arguments, expectin 1x3 or 3x3")
-        if np.linalg.norm(w) < 10 * np.spacing([1])[0]:
+        if np.linalg.norm(w) < 10 * np.finfo(S.dtype).eps:
             return np.eye(3)
         if theta is None:
             theta = np.linalg.norm(w)
@@ -985,13 +1080,14 @@ def trexp2(S, theta=None):
             w = S
         else:
             raise AttributeError("Expecting scalar or 2x2")
+        eps = np.finfo(tr.dtype).eps  # precision for this type of matrix
         if theta is None:
-            if np.linalg.norm(w) < 10 * np.spacing([1])[0]:
+            if np.linalg.norm(w) < 10 * eps:
                 return np.eye(2)
             theta = np.linalg.norm(w)
             S = skew(unitize(w))
         else:
-            if theta < 10 * np.spacing([1])[0]:
+            if theta < 10 * eps:
                 return np.eye(2)
             # todo isunit
             S = skew(w)
@@ -1219,7 +1315,8 @@ def eul2tr(phi, theta=None, psi=None, unit='rad'):
     R = eul2r(phi, theta, psi, unit)
     return r2t(R)
 
-
+'''
+### moved to graphics_vtk module
 # ---------------------------------------------------------------------------------------#
 def np2vtk(mat):
     if mat.shape == (4, 4):
@@ -1228,8 +1325,9 @@ def np2vtk(mat):
             for j in range(4):
                 obj.SetElement(i, j, mat[i, j])
         return obj
-
-
+### moved to graphics_vtk module       
+'''
+    
 # ---------------------------------------------------------------------------------------#
 if __name__ == '__main__':
     # When run as main, initialise test cases in test_classes_to_tun and runs them
