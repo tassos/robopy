@@ -72,7 +72,7 @@ dl3.transform = Ry
 # In[7]:
 
 
-# Obtain a robopy graphics renderer with utilizes ipyvolume.
+# Obtain a robopy graphics renderer which utilizes ipyvolume.
 gIpv = graphics.GraphicsRenderer('IPV')  # sets graphics.gRenderer
 
 
@@ -86,22 +86,50 @@ graphics.plot(dl, limits=limits)
 # In[9]:
 
 
-# Define transform function to animate DisplayListItems.
-def transFunc(t):
+# Define transform function to animate DisplayListItems 
+#
+# Note: Utilizes new animation_timer() class decorator defined in 
+#       the graphics module.
+timer_rate = 60
+frame_rate = 30
+@graphics.animation_timer(timer_rate, frame_rate, real_time=False)
+def transFunc(n, tstep, *args, **kwargs):
     """
     Sample transformation function to rotate display list
     'surface' items about their x-axis.
-    :param t: time (sec)
+    :param n : number of steps (starts at 0)
+    :param tstep: step time (sec)
     :return: a homogeneous transform matrix
     """
+    t = n*tstep
     return tr.trotx(2.0*t, unit="deg")
 
 
 # In[10]:
 
 
-# Give graphics renderer the DisplayList to animate.
-graphics.animate(dl, transFunc, duration=5.0, frame_rate=30, limits=limits)
+# Give graphics renderer the DisplayList to animate for all time steps (anim_incr=False).
+#
+# Note: There may be a considerable delay while all figures are generated 
+#       before being passed to animation_control (noticeable in poseIPV).
+gIpv = graphics.GraphicsRenderer('IPV')  # sets graphics.gRenderer (to clear previous figure)
+fps = frame_rate
+tstep = 1.0/float(fps)
+graphics.animate(dl, transFunc, func_args=[tstep], anim_incr=False, duration=10.00, frame_rate=fps, limits=limits)
+
+
+# In[11]:
+
+
+# Give graphics renderer the DisplayList to animate at each time step (anim_incr=True).
+#
+# Note: There is no delay as each figure is generated and passed to
+#       animation control. However, issues with retention of previous 
+#       images is still being worked out.
+gIpv = graphics.GraphicsRenderer('IPV')  # sets graphics.gRenderer (to clear previous figure)
+fps = frame_rate
+tstep = 1.0/float(fps)
+graphics.animate(dl, transFunc, func_args=[tstep], anim_incr=True, duration=10.00, frame_rate=fps, limits=limits)
 
 
 # In[ ]:
