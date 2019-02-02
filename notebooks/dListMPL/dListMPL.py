@@ -20,12 +20,12 @@ rc('animation', html='jshtml')    # Matplotlib animations will be HTML wrapped J
 """ RoboPy imports
 """
 # Import requisite robopy modules.
-import _robopy                             # locates desired robopy module
-import robopy.base.graphics as graphics    # to perform graphics
-import robopy.base.display_list as dList   # to use display lists
-import robopy.base.transforms as tr        # to apply transforms
-from robopy.base.mesh_geoms import *       # to use mesh geometric shapes
-import numpy as np                         # to use NumPy ndarray type
+import _robopy                                     # locates desired robopy module
+from robopy.base.graphics import GraphicsRenderer  # to select graphics renderer
+import robopy.base.display_list as dList           # to use display lists
+import robopy.base.transforms as tr                # to apply transforms
+from robopy.base.mesh_geoms import *               # to use mesh geometric shapes
+import numpy as np                                 # to use NumPy ndarray type
 
 
 # In[2]:
@@ -75,28 +75,20 @@ dl3.transform = Ry
 # In[7]:
 
 
-# Obtain a robopy graphics renderer with utilizes ipyvolume.
+# Obtain a robopy graphics renderer which utilizes ipyvolume.
 # Currently an empty Figure XYZ axes system will be displayed.
-gMpl = graphics.GraphicsRenderer('MPL')  # sets graphics.gRenderer
+gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer
 
 
 # In[8]:
 
 
-# Resize the default figure
-gMpl.getFigure().set_dpi(80)
-gMpl.getFigure().set_size_inches((6,6), forward=True)
-
-
-# In[9]:
-
-
 # Give graphics renderer the DisplayList to plot (gRenderer.plot()).
-# Check cell [7] above for display of three cylinders - red, blue and green.
+gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer (creates new figure)
 gMpl.plot(dl, limits=limits)
 
 
-# In[10]:
+# In[9]:
 
 
 # Define transform function to animate DisplayListItems.
@@ -110,15 +102,15 @@ def transFunc(t):
     return tr.trotx(2.0*t, unit="deg")
 
 
-# In[11]:
+# In[10]:
 
 
 # Give graphics renderer the DisplayList to animate.
-# Check cell [7] for animated red, blue and green cylinders.
+gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer (creates new figure)
 gMpl.animate(dl, transFunc, duration=5.0, frame_rate=30, limits=limits)
 
 
-# In[12]:
+# In[11]:
 
 
 # Wait until the animation completes before running this cell to create a controlled animation.
