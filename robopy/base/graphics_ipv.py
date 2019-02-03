@@ -9,23 +9,28 @@ DATE: Tue Jan 26 08:23:00 2019
 
 import sys
 import pkg_resources
+import copy
 from types import *
 from abc import abstractmethod
 
 # RoboPy modules
 from robopy.base.tb_parseopts import *
-from robopy.base.graphics import Graphics
+from robopy.base.graphics import Graphics, animation_timer
 from robopy.base.display_list import *
 from robopy.base.param_geoms import *
 
-from . import check_args
 from . import transforms
+from . import graphics as rtbG
 from . import pose as Pose
 from . import serial_link as SerialLink
 
 # To load and handle STL mesh data
-from stl import mesh
-import copy
+try:
+    import trimesh
+except ImportError:
+    print("* Warning: trimesh package required for SerialLink")
+    print("  plotting and animation. Attempts to use robot.plot()")
+    print("  or robot.animate() will fail.")
 
 # Graphics rendering package
 try:
@@ -36,6 +41,9 @@ except ImportError:
     sys.exit()
 
 import matplotlib as mpl  # for color map
+from IPython.display import display, clear_output
+from ipywidgets import Play, FloatSlider, jslink, HBox, VBox, Output
+
 '''
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -76,7 +84,8 @@ def rgb_named_colors(colors):
             rgb_colors[i] = mpl.colors.to_rgb(colors[i])
             
         return rgb_colors
-    
+
+
 ###
 ### MODULE CLASS DEFINITIONS
 ###
@@ -99,7 +108,7 @@ class GraphicsIPV(Graphics):
         self._dispMode = 'IPY'
         self._fig = fig
         
-        # Instantiate a matplotlib pyplot figure.
+        # Instantiate a ipyvolume.pylab figure.
         
         #self.setFigure()
         #self.setFigureAxes(self.getFigure())
@@ -114,12 +123,11 @@ class GraphicsIPV(Graphics):
         
         # rendered artist properties
         
-        self.mesh_list = []  # list of numpy-stl.mesh.Mesh from STL files
-        self.poly_list = []  # list of mpl_toolkit.mplot3d.art3d.Poly3DCollection(Mesh.vectors)
-        self.item_list = []  # list of items plotted
-
-        self.shapes = ['frame', 'box', 'beam', 'sphere', 
-                       'cylinder', 'cone', 'disk', 'plane']
+        self.mesh_list = []    # list of trimesh meshes from STL files
+        self.item_list = []    # list of items plotted
+        self.disp_list = None  # display list of graphics entities to render
+        self.HBox = None
+        self.VBox = None       # ipyvolume widgets virtual box?
     
     def setGraphicsRenderer(self, gRenderer):
         """ Sets graphic renderer for this IPV 3dVisuals.
@@ -148,9 +156,9 @@ class GraphicsIPV(Graphics):
     """
       _dispMode = property(fset=setDispMode, fget=getDispMode)
       _fig = property(fset=setFigure, fget=getFigure)
+      _figkey = property(fget=getFigureKey)
       _ax = property(fset=setFigureAxes, fget=getFiguresAxis)
       mesh_list = property(fset=setMeshes, fget=getMeshes, fdel=delMeshes)
-      poly_list = property(fset=setPolys, fget=getPolys, fdel=delPolys)
     """
     
     def setDispMode(self, dispmode):
@@ -159,20 +167,18 @@ class GraphicsIPV(Graphics):
     def getDispMode(self):
         return self._dispMode
     
-    def setFigure(self, fign):
-        if fign is None:
-           self._fig = p3.figure(key=fign, width=480, height=480)
-
+    def setFigure(self, key):
+        if key is not None:
+           self._fig = p3.figure(key=key, width=480, height=480)
            p3.style.background_color('black')
            p3.style.box_off()
            p3.style.use("dark")
-
         else:
-           self._fig = p3.figure(key=fign)
+           self._fig = p3.figure(key=key)
         
     def getFigure(self):
-        return self._fig
-    
+        return p3.gcf()
+
     def setFigureAxes(self, fig):
         '''
         ##self._ax = fig.add_subplot(111, projection='3d')
@@ -181,8 +187,9 @@ class GraphicsIPV(Graphics):
         ##self._ax.set_frame_on(b=True)
         '''
         p3.view(0.0, -120.0)
+        self.setFigure(p3.gcf())
         self._ax = fig
-        
+
     def getFigureAxes(self):
         return self._ax
     
@@ -222,33 +229,14 @@ class GraphicsIPV(Graphics):
         
     def addMeshes(self, meshes):
         self.mesh_list.append(meshes)
-        
-    def setPolys(self, polys):
-        self.poly_list = polys
-        
-    def setPolyI(self, i, poly):
-        if i in range(len(self.poly_list)):
-            self.poly_list[i] = poly
-    
-    def getPolys(self):
-        return self.poly_list
-    
-    def getPolyI(self, i):
-        if i in range(len(self.poly_list)):
-            return self.poly_list[i]
-        
-    def delPolys(self):
-        self.poly_list = []
- 
-    def addPolys(self, polys):
-        self.poly_list.append(polys)
-        
-    ### Class methods (presented by functional group)
-        
-    ## Plot elements methods
-    
 
-    def plot_parametric_shape(self, shape, solid=False, Tr=np.eye(4), **opts):
+    ### Class methods (presented by functional group)
+
+    ### ...
+
+    ## Plot elements methods
+
+    def plot_parametric_shape(self, shape, solid=False, Tr=[np.identity(4)], **opts):
         """ Plot specified parametric shape
         """
 
@@ -256,67 +244,64 @@ class GraphicsIPV(Graphics):
 
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
-        c = 'k'  # black
+        c = 'black'  # black
         if 'c' in opts:
            c = opts['c']
 
-        # apply homogeneous transform to xyz coordinate arrays
+        # pack the xyz coordinate arrays
+        (xyz, dim0, dim1) = param_xyz_coord_arrays_packed(x ,y, z, Tr[0])
 
-        (xr, yr, zr) = self.shape_xform(x, y, z, Tr)
+        # apply transform to packed xyz coordinate arrays
+        n = len(Tr)
+        xr = np.ndarray((n, x.shape[0], x.shape[1]));
+        yr = np.ndarray((n, y.shape[0], y.shape[1]));
+        zr = np.ndarray((n, z.shape[0], z.shape[1]));
+        for k in range(n):
+            (xr[k,:,:], yr[k,:,:], zr[k,:,:]) = param_xyz_coord_arrays_packed_xform(xyz, dim0, dim1, Tr[k])
 
         # plot the transformed xyz coordinate arrays as meshes
 
-        ax = self.getFigureAxes()
-
         if shape == 'frame':
-            tail = 0
-            head = 1
-            vxr = xr[head,:] - xr[tail,:]
-            vyr = yr[head,:] - yr[tail,:]
-            vzr = zr[head,:] - zr[tail,:]
-            ax.quiver(xr[tail,:], yr[tail,:], zr[tail,:],
-                      vxr[:], vyr[:], vzr[:], 
-                      arrow_length_ratio=0.1, normalize=False, color='k')
-            ax.text3D(xr[head,0], yr[head,0], zr[head,0], 'X', ha='left', va='center', color='r')
-            ax.text3D(xr[head,1], yr[head,1], zr[head,1], 'Y', ha='left', va='center', color='g')
-            ax.text3D(xr[head,2], yr[head,2], zr[head,2], 'Z', ha='left', va='center', color='b')
-        elif shape in ['box', 'beam']:
-            if solid:
-               ax.plot_surface(xr, yr, zr, rstride=1, cstride=5, color=c)
-            else:
-               ax.plot_wireframe(xr, yr, zr, rstride=1, cstride=5, color=c)
+            # coordinate frame axes line segments
+            for k in range(n):
+                Lx = p3.plot(xr[k, 0:2, 0], yr[k, 0:2, 0], zr[k, 0:2, 0], color='red')
+                Lx.material.visible = False
+                Lx.line_material.visible = True
+                Ly = p3.plot(xr[k, 0:2, 1], yr[k, 0:2, 1], zr[k, 0:2, 1], color='green')
+                Ly.material.visible = False
+                Ly.line_material.visible = True
+                Lz = p3.plot(xr[k, 0:2, 2], yr[k, 0:2, 2], zr[k, 0:2, 2], color='blue')
+                Lz.material.visible = False
+                Lz.line_material.visible = True
+                # coordinate frame axes line segment tip arrows
+                tail = 0
+                head = 1
+                vxr = xr[k, head, :] - xr[k, tail, :]
+                vyr = yr[k, head, :] - yr[k, tail, :]
+                vzr = zr[k, head, :] - zr[k, tail, :]
+                arrowcols = np.zeros((1, 3, 3))
+                arrowcols[0, 0, 0] = 1.0
+                arrowcols[0, 1, 1] = 1.0
+                arrowcols[0, 2, 2] = 1.0
+                p3.quiver(xr[k, head, :], yr[k, head, :], zr[k, head, :],
+                          vxr[:], vyr[:], vzr[:],
+                          size=10, size_selected=5, color=arrowcols, color_selected='gray')
+                '''
+                ### for whenever ipyvolume can display text
+                p3.plot_text(xr[:, head, 0], yr[:, head, 0], zr[:, head, 0], 'X', ha='left', va='center', color='r')
+                p3.plot_text(xr[:, head, 1], yr[:, head, 1], zr[:, head, 1], 'Y', ha='left', va='center', color='g')
+                p3.plot_text(xr[:, head, 2], yr[:, head, 2], zr[:, head, 2], 'Z', ha='left', va='center', color='b')
+                '''
         else:
             if solid:
-               ax.plot_surface(xr, yr, zr, rstride=1, cstride=1, color=c)
+               p3.plot_mesh(xr[:,0:dim0,0:dim1],
+                            yr[:,0:dim0,0:dim1],
+                            zr[:,0:dim0,0:dim1], wireframe=False, surface=True, color=c)
             else:
-               ax.plot_wireframe(xr, yr, zr, rstride=1, cstride=1, color=c)
+               p3.plot_mesh(xr[:,0:dim0,0:dim1],
+                            yr[:,0:dim0,0:dim1],
+                            zr[:,0:dim0,0:dim1], wireframe=True, surface=False, color=c)
 
-    @staticmethod
-    def shape_xform(x, y, z, Tr):
-        """ Shape coordinates transformation
-        """
-        # get dimensions of parametric space (assumed square)
-        dim = x.shape[0]
-
-        # pack homogeneous shape coordinates
-        xyz1 = np.vstack([x.reshape((1,dim*dim)), 
-                          y.reshape((1,dim*dim)),
-                          z.reshape((1,dim*dim)),
-                          np.ones((1,dim*dim))])
-
-        # apply transform to packed shape coordinates
-        Vtr = np.dot(Tr, xyz1)
-        """ NumPy matrix type work with Matplotlib's plot routines, but not ipyvolume's.
-            xr = Vtr[0,:].reshape((dim,dim))
-            yr = Vtr[1,:].reshape((dim,dim))
-            zr = Vtr[2,:].reshape((dim,dim))
-        """
-        xr = np.asarray(Vtr[0,:].reshape((dim,dim)))
-        yr = np.asarray(Vtr[1,:].reshape((dim,dim)))
-        zr = np.asarray(Vtr[2,:].reshape((dim,dim)))
-
-        return (xr, yr, zr)
-    
     def draw_axes2(self, *args, **kwargs):
         """ Graphics package draw plot axes for 2D space.
         """ 
@@ -330,12 +315,12 @@ class GraphicsIPV(Graphics):
         return None
         
     def draw_cube(self):
-        (x, y, z) = parametric_box(1.0, 5)
-        self.getFigureAxes().plot_surface(x, y, z, rstride=1, cstride=1, color='b')
+        (x, y, z) = parametric_box(1.0)
+        p3.plot_surface(x, y, z, color='blue')
     
     def draw_sphere(self):
         (x, y, z) = parametric_sphere(1.0, 32)
-        self.getFigureAxes().plot_surface(x, y, z, rstride=1, cstride=1, color='r')
+        p3.plot_surface(x, y, z, color='red')
     
     ### Rendering viewpoint methods
 
@@ -379,7 +364,7 @@ class GraphicsIPV(Graphics):
         raise NotImplementedError('Need to define animate method.')
 
     @abstractmethod
-    def fkine(*args, **kwargs):
+    def fkine(self, *args, **kwargs):
         raise NotImplementedError('Need to define fkine method.')
 
     @abstractmethod
@@ -408,6 +393,13 @@ class GraphicsIPV(Graphics):
 
     # DisplayList rendering, plotting and animation methods
 
+    ### Implementation Note:
+    ###
+    ### Although the following two routines are identified as renderers,
+    ### they do not actually interface with a graphical renderer. They
+    ### both assemble mesh data structures which will be passed to the
+    ### graphical renderer with an appropriate ipyvolume plot routine.
+
     def renderDisplayListItem(self, item):
         if item.type == 'surface':
             data = item.xform()  # get the transformed coordinates
@@ -426,6 +418,34 @@ class GraphicsIPV(Graphics):
                                 np.vstack((item.gentity[1], y)),
                                 np.vstack((item.gentity[2], z)))
             self.item_list.append(item)  # save each item plotted
+        elif item.type == 'stl_mesh':
+            a_mesh = item.data
+            a_mesh.apply_transform(item.transform)
+            xyz = np.asarray(a_mesh.vertices).T
+            x = np.asarray(xyz[0,:]).flatten().T
+            y = np.asarray(xyz[1,:]).flatten().T
+            z = np.asarray(xyz[2,:]).flatten().T
+            f = a_mesh.faces
+            c = np.zeros((1, x.shape[0], 3))
+            c[0,:,:] = np.asarray(rgb_named_colors(item.args['color']))
+            if item.gentity is None:
+                item.gentity =  [np.ndarray((1, x.shape[0])),
+                                 np.ndarray((1, y.shape[0])),
+                                 np.ndarray((1, z.shape[0])),
+                                 np.ndarray((1, f.shape[0], f.shape[1])),
+                                 np.ndarray((1, c.shape[1], c.shape[2]))]
+                item.gentity[0] = x
+                item.gentity[1] = y
+                item.gentity[2] = z
+                item.gentity[3] = f
+                item.gentity[4] = c
+            else:
+                item.gentity = (np.vstack((item.gentity[0], x)),
+                                np.vstack((item.gentity[1], y)),
+                                np.vstack((item.gentity[2], z)),
+                                np.vstack((item.gentity[3], f)),
+                                np.vstack((item.gentity[4], c)))
+            self.item_list.append(item)  # save each item plotted
         elif item.type == 'command':
             eval(item.command, globals())  # eval the command in global context
         elif item.type == 'line':
@@ -433,14 +453,13 @@ class GraphicsIPV(Graphics):
             pass
 
     def renderDisplayList(self, displayList):
-        ### print("renderDisplayList")
         for item in displayList:
             self.renderDisplayListItem(item)
 
-    def plotDisplayList(self, dList, dispMode='IPY', **kwargs):
+    def plotDisplayList(self, displayList, dispMode='IPY', **kwargs):
         """
         Plots the DisplayList graphic entities.
-        :param dList: a DisplayList object
+        :param displayList: a DisplayList object.
         :param: dispMode: display mode, one of ['VTK', 'IPY', 'PIL'].
         :return: None.
         """
@@ -455,37 +474,50 @@ class GraphicsIPV(Graphics):
         (opt, args) = tb_parseopts(opt, **kwargs)
 
         self.setAxesLimits(opt.limits)
-        self.renderDisplayList(dList)
+        self.renderDisplayList(displayList)
 
-        # plot surface on the same figure axes as in MATLAB with 'hold on'
+        # plot items on the same figure axes as in MATLAB with 'hold on'
         S = []
         for item in self.item_list:
-            (x, y, z) = item.gentity
             if item.type == "surface":
+                (x, y, z) = item.gentity
                 S.append(ipv.plot_surface(x, y, z, **item.args))
+            elif item.type == "stl_mesh":
+                (x, y, z, f, c) = item.gentity
+                S.append(ipv.plot_trisurf(x, y, z, triangles=f, color=c))
 
         self.show()
 
-    ### Implementation Note:
-    ###
-    ### Use of transFunc as FunctionType is merely a development convenience and
-    ### its type could also be np.matrix, where each column would associate with
-    ### a 'surface' or 'line' item in the DisplayList just as columns of stances
-    ### passed to animateSerialLink associate with joints in a SerialLink.
-
-    def animateDisplayList(self, displayList, transFunc, unit='rad', gif=None,
+    def animateDisplayList(self, displayList, anim_func, func_args=[],
+                                 anim_incr=True, unit='rad', gif=None,
                                  duration=5.0, frame_rate=30, **kwargs):
         """
-        Animates DisplayList object through transformations as a function of time.
-        :param transFunc: homogeneous transformation function of the form Tr(time)
-        :param duration: duration of animation in seconds
-        :param unit: unit of input angles. Allowed values: 'rad' or 'deg'
-        :param gif: name for the written animated GIF image file.
+        Animates DisplayList items thru transformations as function of frame number.
+        May be specified as a function of the form Tr = anim_func(nf, *func_args)
+        where Tr may be:
+
+          1) a single homogeneous matrix applied to all DisplayList items, or
+          2) a list of homogeneous matrices with each applied to the item
+             in DisplayList based on its order in the list.
+
+        or as an np.matrix array of the form Tr[nf, n] where nf is frame count and
+        n is corresponding item's order in the DisplayList.
+
+        :param displayList: a DisplayList object.
+        :param anim_func: homogeneous transformation function or array (see above).
+        :param func_args: list of argument values passed to the anim_func
+        :param anim_incr: set to True to render incrementally with animation_control
+        :param unit: unit of input angles. Allowed values: 'rad' or 'deg'.
+        :param gif: name for the written animated GIF image file (not used yet).
+        :param duration: duration of animation in seconds.
         :param frame_rate: frame_rate for animation.
+        :param kwargs: dictionary of display list options keyword/value pairs.
         :return: None
         """
         # parse argument list options
-        opts = {'unit'      : unit,                  # holdover from animateSerialLink
+        opts = {'func_args' : func_args,
+                'anim_incr': anim_incr,
+                'unit'      : unit,                  # holdover from animateSerialLink
                 'gif'       : gif,                   # holdover from GraphicsVTK
                 'duration'  : duration,
                 'frame_rate': frame_rate,
@@ -498,43 +530,140 @@ class GraphicsIPV(Graphics):
 
         (opt, args) = tb_parseopts(opt, **kwargs)
 
-        # verify transFunc
-        assert type(transFunc) is FunctionType
+        # calculate framing timing parameters
 
+        frame_step_msec = int(1000.0 / opt.frame_rate)
+
+        # get number of frames; verify anim_func as Tr function or stances
+
+        nframes = 0
+        if anim_func is not None:
+            if type(anim_func) is FunctionType:
+                if opt.func_args is not None:
+                    assert type(opt.func_args) is list
+                else:
+                    opt.func_args = []
+                if type(opt.duration) is float:
+                    nframes = int(opt.duration * opt.frame_rate) + 1
+                else:
+                    nframes = opt.duration
+            else:
+                # anim_func of the form q[k,n], where k
+                # is frame count and n is joint #.
+                assert type(anim_func) is np.matrix
+                nframes = min(np.matrix.shape[0], int(opt.duration))
+
+        # set figure axes limits
         self.setAxesLimits(opt.limits)
 
-        # calculate framing timing parameters
-        tstep = 1.0 / opt.frame_rate
-        nframes = int(opt.duration * opt.frame_rate) + 1
-
+        # reset display list item's gentity property
         displayList.reset()
 
-        # render remaining frames
+        ### vvv Development Notes:
+        ###
+        ### See below.
+        if opt.anim_incr:
+            out = Output()
+            fig = p3.gcf()
+            fig.animation = frame_step_msec
+            fig.animation_exponent = 1.0
+            self.VBox = VBox([p3.gcc()])
+        ## ^^^
+
+        # render frames
         for n in range(0, nframes):
-            # update time
-            t = n * tstep
             # update display list item's transforms
-            Tr = np.asarray(transFunc(t))
-            for item in displayList:
-                item.transform = np.dot(item.transform, Tr)
+            if type(anim_func) is FunctionType:
+                 Tr = anim_func(n, *opt.func_args)
+            else:
+                 Tr = anim_func(n)
+            if type(Tr) is list:
+                # SerialLink
+                k = 0
+                for item in displayList:
+                    if k > 1:
+                        a_mesh = copy.deepcopy(self.getMeshI(k-2))
+                        a_mesh.apply_transform(Tr[k])
+                        # to use STL meshes defined wrt VTK reference frame
+                        a_mesh.apply_transform(transforms.trotx(90.0, unit="deg"))
+                        item.data =  a_mesh
+                        item.transform = np.identity(4)
+                    else:
+                        item.transform = np.asarray(Tr[k])
+                    k += 1
+            else:
+                for item in displayList:
+                    item.transform = np.dot(item.transform, np.asarray(Tr))
+
             # clear plotted items list
             self.item_list.clear()
             # render display list graphics entities
             self.renderDisplayList(displayList)
 
-        S = []
-        for item in self.item_list:
-            (x, y, z) = item.gentity
-            if item.type == "surface":
-                S.append(ipv.plot_surface(x, y, z, **item.args))
+            ### vvv Development Notes:
+            ###
+            ### Attempts to show rendering frame by frame before presenting
+            ### completed rendered sequence to animation control.
+            if opt.anim_incr:
+                S = []
+                for item in self.item_list:
+                    if item.type == "surface":
+                        (x, y, z) = item.gentity
+                        S.append(p3.plot_surface(x, y, z, **item.args))
+                    elif item.type == "stl_mesh":
+                        (x, y, z, f, c) = item.gentity
+                        S.append(p3.plot_trisurf(x, y, z, triangles=f, color=c))
+                if n == 0:
+                    # create initial play and slider widgets, put both in ipywidget HBox
+                    play = Play(min=0, max=1, interval=frame_step_msec, value=0, step=1)
+                    slider = FloatSlider(min=0, max=play.max, step=1)
+                    self.HBox = HBox([play, slider])
+                    # put p3 current content children in ipywidget VBox
+                    self.VBox = VBox([p3.gcc()])
+                    display(self.VBox)
+                    display(out)
+                else:
+                    # remove previous HBox play and slider from p3 current content children
+                    p3.gcc().children = [x for x in p3.gcc().children if x != self.HBox]
+                    ### remove last p3 plot objects S from p3 current content children
+                    ##for s in last_S:
+                    ##    p3.gcc().children = [x for x in p3.gcc().children if x != s]
+                    out.clear_output()
+                    # create updated play and slider widgets; put both in HBox
+                    play = Play(min=0, max=n+1, interval=frame_step_msec, value=n, step=1)
+                    slider = FloatSlider(min=0, max=play.max, step=1)
+                    self.HBox = HBox([play, slider])
+                # use ipywidgets jslink to link: play -> slider -> p3 plot objects S
+                for s in S:
+                    jslink((slider, 'value'), (s, 'sequence_index'))
+                jslink((play, 'value'), (slider, 'value'))
+                # add play and slider control to p3 current content children
+                control = self.HBox
+                p3.gcc().children += (control,)
+                ##print(p3.gcc().children)
+                ##p3.show()
+                last_S = S
+            ### ^^^
 
-        frame_step_msec = int(1000.0 / opt.frame_rate)
+        # plot items on the same figure axes as in MATLAB with 'hold on'
 
-        self.HBox = p3.animation_control(S,sequence_length=nframes,
-                                           interval=frame_step_msec)
+        if not opt.anim_incr:
+            # render all display list items over animation durations
+            S = []
+            for item in self.item_list:
+                if item.type == "surface":
+                    (x, y, z) = item.gentity
+                    S.append(ipv.plot_surface(x, y, z, **item.args))
+                elif item.type == "stl_mesh":
+                    (x, y, z, f, c) = item.gentity
+                    S.append(ipv.plot_trisurf(x, y, z, triangles=f, color=c))
 
-        # initiate display list animation
-        self.show()
+            # assemble iteractive controlled animation
+            p3.animation_control(S, sequence_length=nframes,
+                                    interval=frame_step_msec)
+
+            # initiate display list animation
+            self.show()
 
 
 ### Implementation Note:
@@ -562,17 +691,7 @@ class Ipv3dVisual(GraphicsIPV):
         if len(args) < 1 :  # crude method for handling type tests
             return None
 
-        ### fignums = plt.get_fignums() # Matplotlib specific
-        fignums = []
-
-        if fignums != [] \
-            and args[0] in fignums :
-            # use existing figure
-            self.setFigure(args[0])   ### Developers's convenience
-            ### self.setFigure(None)  ### User's convenience
-
-        else:
-            self.setFigure(None)
+        self.setFigure(args[0])
 
         self.setFigureAxes(self.getFigure())
         
@@ -584,7 +703,6 @@ class Ipv3dVisual(GraphicsIPV):
         return super(Ipv3dVisual, self).getAxesLimits()
     
     ### Class methods
-    ###
     
     def draw_cube(self):
         super(Ipv3dVisual, self).draw_cube()
@@ -603,9 +721,34 @@ class Ipv3dVisual(GraphicsIPV):
         return None
     
     def pose_plot3(self, pose, **kwargs):
-        print("* Not yet implemented.")
-        return None
-        
+        """
+        Plot pose SO3 and SE3 transform coordinate frames.
+        :param pose: a Pose object
+        :param kwargs: plot properties keyword name/value pairs
+        :return: None
+        """
+        opts = {'dispMode': self.getDispMode(),
+                'z_up': True,
+                'limits': self.getAxesLimits(),
+                }
+
+        opt = asSimpleNs(opts)
+
+        (opt, args) = tb_parseopts(opt, **kwargs)
+
+        pose_se3 = pose
+
+        if type(pose) is type(Pose.SO3()):
+            pose_se3 = pose.to_se3()
+
+        T = []
+        for each in pose_se3:
+           T.append(each)
+
+        super(Ipv3dVisual, self).plot_parametric_shape('frame', Tr=T, **args)
+
+        self.show()
+
     def plot(self, obj, **kwargs):
         if type(obj) in [type(Pose.SO2()), type(Pose.SE2())]:
             self.pose_plot2(obj, **kwargs)
@@ -641,38 +784,28 @@ class Ipv3dVisual(GraphicsIPV):
         if apply_stance and mesh_list is not None \
                         and len(mesh_list) >= len(T):
             for i in range(0,len(T)):
-                mesh_list[i].transform(T[i])
+                mesh_list[i].apply_transform(T[i])
                 
         return T
     
     def _setup_mesh_objs(self, obj):   
         """
         Internal function to initialise mesh objects.
-        :return: mesh_list, poly_list
+        :return: mesh_list
         """
-        mesh_list = []
-        poly_list = []
-        '''
-        ### Plotting STL meshes requires matplotlib.plot3d
+        ### Plotting STL meshes requires trimesh
         mesh_list = [0] * len(obj.stl_files)
-        poly_list = [0] * len(obj.stl_files)
         for i in range(len(obj.stl_files)):
             loc = pkg_resources.resource_filename("robopy", '/'.join(('media', obj.name, obj.stl_files[i])))
-            a_mesh = mesh.Mesh.from_file(loc)
-            a_poly = mplot3d.art3d.Poly3DCollection(a_mesh.vectors)
-            a_poly.set_facecolor(obj.colors[i])  # (R,G,B)
-            a_poly.set_rasterized(True)
-            a_poly.set_zorder(2.0)
+            a_mesh = trimesh.load_mesh(loc)
             mesh_list[i] = a_mesh
-            poly_list[i] = a_poly
-        '''
 
         loc = pkg_resources.resource_filename("robopy", "/media/stl/floor/white_tiles.stl")
-        white_tiles = mesh.Mesh.from_file(loc)
+        white_tiles = trimesh.load_mesh(loc)
         loc = pkg_resources.resource_filename("robopy", "/media/stl/floor/green_tiles.stl")
-        green_tiles = mesh.Mesh.from_file(loc)
+        green_tiles = trimesh.load_mesh(loc)
         
-        return (mesh_list, poly_list, white_tiles, green_tiles)
+        return (mesh_list, white_tiles, green_tiles)
     
     ### Stub for pose rendered as stick figure.
     def _render_stick_pose(self, obj, stance, unit, **kwargs):
@@ -718,33 +851,19 @@ class Ipv3dVisual(GraphicsIPV):
         self.plot_parametric_shape('plane', solid=False, Tr=np.eye(4), **params)
 
     def _render_stl_floor(self, obj, white_tiles, green_tiles):
-        """ Render floow as white and green STL mesh tiles.
+        """ Render floor as white and green STL mesh tiles.
         """
-        ### NOTE: cannot do hidden surface plots with poly3D collections
-        
         # get floor's position
         position = np.asarray(obj.param.get("floor_position")).flatten()
         
-        # render floor tiles
+        # render white floor tiles
+        white_tiles.apply_transform(transforms.transl([0.0,0.0,position[1]]))
+        self.disp_list.add('stl_mesh', 'white_tiles', white_tiles, color='white')
 
-        '''
-        ### plotting STL meshes requires mplot3d
-        white_tiles.z += position[1]
-        a_poly = mplot3d.art3d.Poly3DCollection(white_tiles.vectors)
-        a_poly.set_facecolor("white")
-        a_poly.set_edgecolor("white")
-        a_poly.set_rasterized(True)
-        a_poly.set_zorder(1.0)
-        self.getFigureAxes().add_collection3d(a_poly)
-        
-        green_tiles.z += position[1]
-        a_poly = mplot3d.art3d.Poly3DCollection(green_tiles.vectors)
-        a_poly.set_facecolor("green")
-        a_poly.set_edgecolor("green")
-        a_poly.set_rasterized(True)
-        a_poly.set_zorder(1.0)
-        self.getFigureAxes().add_collection3d(a_poly)
-        '''
+        # render green floor tiles
+        green_tiles.apply_transform(transforms.transl([0.0,0.0,position[1]]))
+        self.disp_list.add('stl_mesh', 'green_tiles', green_tiles, color='green')
+
     def _render_stl_pose(self, obj, stance, unit, limits=None):
         """
         Renders given SerialLink object defined as STL meshes in desired stance.
@@ -752,13 +871,12 @@ class Ipv3dVisual(GraphicsIPV):
         :param stance: list of joint angles for SerialLink object.
         :param unit: unit of input angles.
         :param limits; plot x, y, z limits
-        :return: tuple = (limits, mesh_list, mesh_poly3d)  # used for animation
+        :return: tuple = (limits, mesh_list)  # used for animation
         """                
         # load SerialLink mesh definition from STL files.
-        (mesh_list, poly_list, white_tiles, green_tiles) = self._setup_mesh_objs(obj)
+        (mesh_list, white_tiles, green_tiles) = self._setup_mesh_objs(obj)
 
         self.setMeshes(copy.deepcopy(mesh_list))
-        self.setPolys(poly_list)
         
         # if necessary, apply plot axes limits
         if limits is None:
@@ -769,33 +887,24 @@ class Ipv3dVisual(GraphicsIPV):
             limits = [zlims[0], zlims[1], xlims[0], xlims[1], ylims[0], ylims[1]]
             
         self.setAxesLimits(limits)
-        
+
         # render floor
         self._render_stl_floor(obj, white_tiles, green_tiles)
             
         # apply stance to reference pose
         self.fkine(obj, stance, unit=unit, apply_stance=True, 
-                   mesh_list=self.getMeshes())
+                        mesh_list=self.getMeshes())
         
-        # render SerialLink object; save and return poly3d artists
-        mesh_poly3d = []
-        '''
-        ### Plotting STL meshes requires mplotlib.mplot3d
+        # render SerialLink object; save and return mesh_list
         for i in range(0, len(self.getMeshes())):
             a_mesh = self.getMeshI(i)
-            a_mesh.rotate([1.,0.,0.], -np.pi/2)
-            a_poly = mplot3d.art3d.Poly3DCollection(a_mesh.vectors)
-            a_poly.set_facecolor(obj.colors[i])
-            a_poly.set_rasterized(True)
-            a_poly.set_zorder(2.0)
-            self.setPolyI(i, a_poly)
-            self.getFigureAxes().add_collection3d(a_poly)
-            mesh_poly3d.append(a_poly)
-        '''
+            a_mesh.apply_transform(transforms.trotx(90.0, unit="deg"))
+            self.disp_list.add('stl_mesh', obj.stl_files[i], a_mesh, color=obj.colors[i])
+
         # preserve reference pose
         self.setMeshes(copy.deepcopy(mesh_list))
         
-        return(limits, mesh_list, mesh_poly3d)
+        return(limits, mesh_list)
 
     def qplot(self, obj, stance, unit='rad', dispMode='IPY', **kwargs):
         """
@@ -823,32 +932,56 @@ class Ipv3dVisual(GraphicsIPV):
         if opt.unit == 'deg':
             stance = stance * (np.pi / 180)
             opt.unit = 'rad'
-        
+
+        # create a display list
+
+        self.disp_list = DisplayList()
+
         self._render_stl_pose(obj, stance, opt.unit, limits=opt.limits)
-         
-        # Display pose
-        
-        self.show()        
+
+        self. plotDisplayList(self.disp_list, dispMode='IPY', **args)
     
-    def trplot(self, *args, **kwargs):
-        print("* Not yet implemented.")
-        return None
-       
+    def trplot(self, tqr, **kwargs):
+        """
+        Plot transform coordinate frame.
+        :param tqr: homogeneous transform matrix, quaternion or rotation matrix
+        :param kwargs: plot properties keyword name/value pairs
+        :return: None
+        """
+        opts = {'dispMode': self.getDispMode(),
+                'z_up': True,
+                'limits': self.getAxesLimits(),
+                }
+
+        opt = asSimpleNs(opts)
+
+        (opt, args) = tb_parseopts(opt, **kwargs)
+
+        T = rtbG.coerce_to_array_list(tqr)
+
+        super(Ipv3dVisual, self).plot_parametric_shape('frame', Tr=T, **args)
+
+        self.show()
+
     def trplot2(self, *args, **kwargs):
         print("* Not yet implemented.")
         return None
     
-    def animateSerialLink(self, obj, stances, unit='rad', gif=None, frame_rate=25, **kwargs):
+    def animateSerialLink(self, obj, stances, unit='rad', anim_incr=False, timer_rate=60, gif=None, frame_rate=25, **kwargs):
         """
         Animates SerialLink object over mx6 dimensional input matrix, with each row representing list of 6 joint angles.
         :param stances: mx6 dimensional input matrix.
         :param unit: unit of input angles. Allowed values: 'rad' or 'deg'
-        :param gif: name for the written animated GIF image file.
+        :param anim_incr: set to True to render incrementally with animation_control
+        :param timer_rate: simulation timer rate (steps per second)
+        :param gif: name for the written animated GIF image file (not used yet)
         :param frame_rate: frame_rate for animation.
         :return: None
         """       
         # parse argument list options
         opts = { 'unit'       : unit,
+                 'anim_incr'  : anim_incr,
+                 'timer_rate' : timer_rate,
                  'gif'        : gif,                 # holdover from GraphicsVTK
                  'frame_rate' : frame_rate,
                  'dispMode'   : self.getDispMode(),  # holdover from GraphicsVTK
@@ -867,28 +1000,30 @@ class Ipv3dVisual(GraphicsIPV):
         if opt.unit == 'deg':
             stances = stances * (np.pi / 180)
             opt.unit = 'rad'
-        
-        # Plot initial pose stance
-        (limits, mesh_list, mesh_poly3d) = self._render_stl_pose(obj, stances, opt.unit, limits=opt.limits)
-        
-        # define text3D artist for rendered frame time display
-        tx = limits[1]*1.2
-        ty = limits[2]*1.2
-        tz = limits[5]*1.2
-        time_text = self.getFigureAxes().text3D(tx, ty, tz, '', ha='center', va='bottom')
-        anim_text3d = time_text        
 
-        # set animation parameters, then instantiate an animator
-        nframes = stances.shape[0]
-        fps = opt.frame_rate
-        frame_step_msec = 1000.0 / opt.frame_rate
+        # create a display list
+        self.delMeshes()
+        self.disp_list = DisplayList()
 
-        self.HBox = p3.animation_control([], sequence_length=nframes,
-                                             interval=frame_step_msec)
+        # render initial pose
+        (limits, mesh_list) = self._render_stl_pose(obj, stances[0,:], opt.unit, limits=opt.limits)
 
-        # initiate pose animation
-        
-        self.show()
+        # define pose transform function
+        @animation_timer(opt.timer_rate, opt.frame_rate)
+        def transFunc(n, tstep, self, obj, stances, unit):
+
+            T = self.fkine(obj, stances, unit=unit, apply_stance=False, mesh_list=None, timer=n)
+
+            return [np.asmatrix(np.identity(4)), np.asmatrix(np.identity(4))] + T
+
+        tstep  = 1.0 / float(opt.timer_rate)
+        funcArgs = [tstep, self, obj, stances, opt.unit]
+        duration = stances.shape[0]
+
+        # perform display list animation
+        self.animateDisplayList(self.disp_list, transFunc, func_args=funcArgs,
+                                anim_incr=opt.anim_incr, unit=opt.unit, duration=duration,
+                                frame_rate=int(opt.frame_rate), limits=limits)
 
         return None
     

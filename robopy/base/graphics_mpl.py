@@ -9,6 +9,7 @@ DATE: Tue Jan  9 11:53:00 2019
 
 import sys
 import pkg_resources
+import copy
 from types import *
 from abc import abstractmethod
 
@@ -18,8 +19,7 @@ from robopy.base.graphics import Graphics
 from robopy.base.display_list import *
 from robopy.base.param_geoms import *
 
-from . import check_args
-from . import transforms
+from . import graphics as rtbG
 from . import pose as Pose
 from . import serial_link as SerialLink
 
@@ -30,8 +30,6 @@ except ImportError:
     print("* Warning: numpy-stl package required for SerialLink")
     print("  plotting and animation. Attempts to use robot.plot()")
     print("  or robot.animate() will fail.")
-
-import copy
 
 # Graphics rendering package
 try:
@@ -80,7 +78,6 @@ def rgb_named_colors(colors):
             
         return rgb_colors
 
-
 ###
 ### MODULE CLASS DEFINITIONS
 ###
@@ -122,7 +119,7 @@ class GraphicsMPL(Graphics):
         self.poly_list = []  # list of mpl_toolkit.mplot3d.art3d.Poly3DCollection(Mesh.vectors)
         self.axes_list = []  # list of Poly3DCollection from Axes3D.ax.plot_surface()
 
-        self.anim = None
+        self._anim = None
     
     def setGraphicsRenderer(self, gRenderer):
         """ Sets graphic renderer for this MPL 3dArtists.
@@ -154,6 +151,7 @@ class GraphicsMPL(Graphics):
       _ax = property(fset=setFigureAxes, fget=getFiguresAxis)
       mesh_list = property(fset=setMeshes, fget=getMeshes, fdel=delMeshes)
       poly_list = property(fset=setPolys, fget=getPolys, fdel=delPolys)
+      animDL = property(fset=setAnimDL(), fget=getAnimDL()
     """
     
     def setDispMode(self, dispmode):
@@ -163,10 +161,20 @@ class GraphicsMPL(Graphics):
         return self._dispMode
     
     def setFigure(self, fign):
+
         if fign is None:
-           self._fig = plt.figure(figsize=(6,6), dpi=80)
+            # get current figure
+            self._fig = plt.gcf()
         else:
-           self._fig = plt.figure(num=fign)
+            fignums = plt.get_fignums()
+            if fignums != [] \
+               and fign in fignums \
+               and plt.fignum_exists(fign):
+               # get existing figure
+               self._fig = plt.figure(num=fign)
+            else:
+               # get new figure
+               self._fig = plt.figure(num=fign, figsize=(6,6), dpi=80)
         
     def getFigure(self):
         return self._fig
@@ -244,12 +252,18 @@ class GraphicsMPL(Graphics):
  
     def addPolys(self, polys):
         self.poly_list.append(polys)
+
+    def setAnimDL(self, anim):
+        self.animDL = anim
+
+    def getAnimDL(self):
+        return self.animDL
         
     ### Class methods (presented by functional group)
         
     ## Plot elements methods
 
-    def plot_parametric_shape(self, shape, solid=False, Tr=np.eye(4), **opts):
+    def plot_parametric_shape(self, shape, solid=False, Tr=[np.identity(4)], **opts):
         """ Plot specified parametric shape
         """
 
@@ -261,9 +275,16 @@ class GraphicsMPL(Graphics):
         if 'c' in opts:
            c = opts['c']
 
-        # apply homogeneous transform to xyz coordinate arrays
+        # pack the xyz coordinate arrays
+        (xyz, dim0, dim1) = param_xyz_coord_arrays_packed(x ,y, z, Tr[0])
 
-        (xr, yr, zr) = self.shape_xform(x, y, z, Tr)
+        # apply transform to packed xyz coordinate arrays
+        n = len(Tr)
+        xr = np.ndarray((n, x.shape[0], x.shape[1]));
+        yr = np.ndarray((n, y.shape[0], y.shape[1]));
+        zr = np.ndarray((n, z.shape[0], z.shape[1]));
+        for k in range(n):
+            (xr[k,:,:], yr[k,:,:], zr[k,:,:]) = param_xyz_coord_arrays_packed_xform(xyz, dim0, dim1, Tr[k])
 
         # plot the transformed xyz coordinate arrays as meshes
 
@@ -272,52 +293,37 @@ class GraphicsMPL(Graphics):
         if shape == 'frame':
             tail = 0
             head = 1
-            vxr = xr[head,:] - xr[tail,:]
-            vyr = yr[head,:] - yr[tail,:]
-            vzr = zr[head,:] - zr[tail,:]
-            ax.quiver(xr[tail,:], yr[tail,:], zr[tail,:],
-                      vxr[:], vyr[:], vzr[:], 
-                      arrow_length_ratio=0.1, normalize=False, color='k')
-            ax.text3D(xr[head,0], yr[head,0], zr[head,0], 'X', ha='left', va='center', color='r')
-            ax.text3D(xr[head,1], yr[head,1], zr[head,1], 'Y', ha='left', va='center', color='g')
-            ax.text3D(xr[head,2], yr[head,2], zr[head,2], 'Z', ha='left', va='center', color='b')
-        elif shape in ['box', 'beam']:
-            if solid:
-               ax.plot_surface(xr, yr, zr, rstride=1, cstride=5, color=c)
-            else:
-               ax.plot_wireframe(xr, yr, zr, rstride=1, cstride=5, color=c)
+            ax_label = ['x', 'y', 'z']
+            c_tr_label = 'k'
+            c_ax_arrow = ['k', 'k', 'k']
+            c_ax_label = ['r','g','b']
+            vxr = xr[:, head, :] - xr[:, tail, :]
+            vyr = yr[:, head, :] - yr[:, tail, :]
+            vzr = zr[:, head, :] - zr[:, tail, :]
+            for k in range(n):
+                tr_label = "Tr{0}".format(k)
+                ax.quiver(xr[k, tail, 0], yr[k, tail, 0], zr[k, tail, 0], vxr[k, 0], vyr[k, 0], vzr[k, 0],
+                      arrow_length_ratio=0.1, normalize=False, color=c_ax_arrow[0])
+                ax.quiver(xr[k, tail, 1], yr[k, tail, 1], zr[k, tail, 1], vxr[k, 1], vyr[k, 1], vzr[k, 1],
+                      arrow_length_ratio=0.1, normalize=False, color=c_ax_arrow[1])
+                ax.quiver(xr[k, tail, 2], yr[k, tail, 2], zr[k, tail, 2], vxr[k, 2], vyr[k, 2], vzr[k, 2],
+                      arrow_length_ratio=0.1, normalize=False, color=c_ax_arrow[2])
+                ax.text3D(xr[k, tail, 0], yr[k, tail, 0], zr[k, tail, 0], tr_label,
+                          ha='center', va='top', color=c_tr_label)
+                ax.text3D(xr[k, head, 0], yr[k, head, 0], zr[k, head, 0], ax_label[0],
+                          ha='left', va='center', color=c_ax_label[0])
+                ax.text3D(xr[k, head, 1], yr[k, head, 1], zr[k, head, 1], ax_label[1],
+                          ha='left', va='center', color=c_ax_label[1])
+                ax.text3D(xr[k, head, 2], yr[k, head, 2], zr[k, head, 2], ax_label[2],
+                          ha='left', va='center', color=c_ax_label[2])
         else:
             if solid:
-               ax.plot_surface(xr, yr, zr, rstride=1, cstride=1, color=c)
+                for k in range(n):
+                    ax.plot_surface(xr[k,:,:], yr[k,:,:], zr[k,:,:], color=c)
             else:
-               ax.plot_wireframe(xr, yr, zr, rstride=1, cstride=1, color=c)
+                for k in range(n):
+                    ax.plot_wireframe(xr[k,:,:], yr[k,:,:], zr[k,:,:], color=c)
 
-    @staticmethod
-    def shape_xform(x, y, z, Tr):
-        """ Shape coordinates transformation
-        """
-        # get dimensions of parametric space (assumed square)
-        dim = x.shape[0]
-
-        # pack homogeneous shape coordinates
-        xyz1 = np.vstack([x.reshape((1,dim*dim)), 
-                          y.reshape((1,dim*dim)),
-                          z.reshape((1,dim*dim)),
-                          np.ones((1,dim*dim))])
-
-        # apply transform to packed shape coordinates
-        Vtr = np.dot(Tr, xyz1)
-        """ NumPy matrix type work with Matplotlib's plot routines, but not ipyvolume's.
-            xr = Vtr[0,:].reshape((dim,dim))
-            yr = Vtr[1,:].reshape((dim,dim))
-            zr = Vtr[2,:].reshape((dim,dim))
-        """
-        xr = np.asarray(Vtr[0,:].reshape((dim,dim)))
-        yr = np.asarray(Vtr[1,:].reshape((dim,dim)))
-        zr = np.asarray(Vtr[2,:].reshape((dim,dim)))
-
-        return (xr, yr, zr)
-    
     def draw_axes2(self, *args, **kwargs):
         """ Graphics package draw plot axes for 2D space.
         """ 
@@ -331,12 +337,12 @@ class GraphicsMPL(Graphics):
         return None
         
     def draw_cube(self):
-        (x, y, z) = parametric_box(1.0, 5)
-        self.getFigureAxes().plot_surface(x, y, z, rstride=1, cstride=1, color='b')
+        (x, y, z) = parametric_box(1.0)
+        self.getFigureAxes().plot_surface(x, y, z, color='b')
     
     def draw_sphere(self):
         (x, y, z) = parametric_sphere(1.0, 32)
-        self.getFigureAxes().plot_surface(x, y, z, rstride=1, cstride=1, color='r')
+        self.getFigureAxes().plot_surface(x, y, z, color='r')
 
     ### Rendering viewpoint methods
 
@@ -486,7 +492,6 @@ class GraphicsMPL(Graphics):
             pass
 
         def _animFunc(nf, self, displayList, transFunc, fps, anim_text3d, iaxes_list):
-            ###print("_animFunc")
             # update frame time
             t = float(nf)/fps
 
@@ -549,11 +554,12 @@ class GraphicsMPL(Graphics):
         fps = int(opt.frame_rate)
         frame_step_msec = 1000.0 / opt.frame_rate
 
-        self.anim = animation.FuncAnimation(self.getFigure(), _animFunc,
-                                            fargs=(self, displayList, transFunc, fps,
-                                                   anim_text3d, axes_list),
-                                            frames=nframes, blit=False,
-                                            interval=frame_step_msec, repeat=False)
+        self.setAnimDL(animation.FuncAnimation(self.getFigure(), _animFunc,
+                                               fargs=(self, displayList, transFunc, fps,
+                                                      anim_text3d, axes_list),
+                                               frames=nframes, blit=False,
+                                               interval=frame_step_msec, repeat=False))
+        self._anim = self.getAnimDL()
 
         # initiate display list animation
         self.show()
@@ -585,19 +591,12 @@ class Mpl3dArtist(GraphicsMPL):
 
         mpl.style.use('dark_background')
 
-        fignums = plt.get_fignums()
-
-        if fignums != [] \
-            and args[0] in fignums \
-            and plt.fignum_exists(args[0]):
-            # use existing figure
-            self.setFigure(args[0])   ### Developers's convenience
-            ### self.setFigure(None)  ### User's convenience
-
-        else:
-            self.setFigure(None)
+        self.setFigure(args[0])
 
         self.setFigureAxes(self.getFigure())
+
+        self.anim = None
+        self.animSL = None
         
         super(Mpl3dArtist, self).__init__(self.getFigure())
 
@@ -605,15 +604,20 @@ class Mpl3dArtist(GraphicsMPL):
     
     def getAxesLimits(self):
         return super(Mpl3dArtist, self).getAxesLimits()
-    
+
     ### Class methods
-    ###
     
     def draw_cube(self):
         super(Mpl3dArtist, self).draw_cube()
         
     def draw_sphere(self):
         super(Mpl3dArtist, self).draw_sphere()
+
+    def setAnimSL(self, anim):
+        self.animSL = anim
+
+    def getAnimSL(self):
+        return self.animSL
     
     ### Plotting methods
     
@@ -626,8 +630,33 @@ class Mpl3dArtist(GraphicsMPL):
         return None
     
     def pose_plot3(self, pose, **kwargs):
-        print("* Not yet implemented.")
-        return None
+        """
+        Plot pose SO3 and SE3 transform coordinate frames.
+        :param pose: a Pose object
+        :param kwargs: plot properties keyword name/value pairs
+        :return: None
+        """
+        opts = {'dispMode': self.getDispMode(),
+                'z_up': True,
+                'limits': self.getAxesLimits(),
+                }
+
+        opt = asSimpleNs(opts)
+
+        (opt, args) = tb_parseopts(opt, **kwargs)
+
+        pose_se3 = pose
+
+        if type(pose) is type(Pose.SO3()):
+            pose_se3 = pose.to_se3()
+
+        T = []
+        for each in pose_se3:
+           T.append(each)
+
+        super(Mpl3dArtist, self).plot_parametric_shape('frame', Tr=T, **args)
+
+        self.show()
         
     def plot(self, obj, **kwargs):
         if type(obj) in [type(Pose.SO2()), type(Pose.SE2())]:
@@ -840,9 +869,27 @@ class Mpl3dArtist(GraphicsMPL):
         
         self.show()        
     
-    def trplot(self, *args, **kwargs):
-        print("* Not yet implemented.")
-        return None
+    def trplot(self, tqr, **kwargs):
+        """
+        Plot transform coordinate frame.
+        :param tqr: homogeneous transform matrix, quaternion or rotation matrix
+        :param kwargs: plot properties keyword name/value pairs
+        :return: None
+        """
+        opts = {'dispMode': self.getDispMode(),
+                'z_up': True,
+                'limits': self.getAxesLimits(),
+                }
+
+        opt = asSimpleNs(opts)
+
+        (opt, args) = tb_parseopts(opt, **kwargs)
+
+        T = rtbG.coerce_to_array_list(tqr)
+
+        super(Mpl3dArtist, self).plot_parametric_shape('frame', Tr=T, **args)
+
+        self.show()
        
     def trplot2(self, *args, **kwargs):
         print("* Not yet implemented.")
@@ -923,18 +970,18 @@ class Mpl3dArtist(GraphicsMPL):
         fps = opt.frame_rate
         frame_step_msec = 1000.0 / opt.frame_rate
         
-        self.anim = animation.FuncAnimation(self.getFigure(), _animFunc,
-                                   fargs=(self, obj, stances, opt.unit, fps, 
-                                          mesh_list, anim_text3d, mesh_poly3d),
-                                   frames=nframes, blit=False,
-                                   interval=frame_step_msec, repeat=False)
-        
+        self.setAnimSL(animation.FuncAnimation(self.getFigure(), _animFunc,
+                                               fargs=(self, obj, stances, opt.unit, fps,
+                                                      mesh_list, anim_text3d, mesh_poly3d),
+                                               frames=nframes, blit=False,
+                                               interval=frame_step_msec, repeat=False))
+
+        self.anim = self.getAnimSL()
+
         # initiate pose animation
         
         self.show()
 
-        return None
-    
     def panimate(self, obj, stances, unit='rad', frame_rate=25, gif=None, **kwargs):
         print("* Not yet implemented.")
         return None
