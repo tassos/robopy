@@ -36,10 +36,14 @@ class DisplayListItem:
             # plot_surface data, 3 NxN meshes
             Xc = copy.deepcopy(data[0])  ### The use of deepcopy here may likely be
             Yc = copy.deepcopy(data[1])  ### superfluous, but this is being done to
-            Zc = copy.deepcopy(data[2])  ### resolve DisplayList animation issues.
+            Zc = copy.deepcopy(data[2])  ### mitigate DisplayList animation issues.
 
             self.shape = Xc.shape
-            self.data = np.vstack((Xc.flatten(), Yc.flatten(), Zc.flatten()))  # create 3xN array
+            self.data = np.vstack((Xc.flatten(),
+                                   Yc.flatten(),
+                                   Zc.flatten()))  # create 3xN array
+        elif type == 'stl_mesh':
+            self.data = data
         elif type == 'command':
             self.command = name
         elif type == 'line':
@@ -56,17 +60,18 @@ class DisplayListItem:
     def xform(self):
         ## transform the points
 
-        R = self.transform[0:3, 0:3]
-        t = self.transform[0:3, 3].reshape((3, 1))
+        if self.type == 'surface':
+            R = self.transform[0:3, 0:3]
+            t = self.transform[0:3, 3].reshape((3, 1))
 
-        z = np.dot(R, self.data) + t  # rotate and translate
+            z = np.dot(R, self.data) + t  # rotate and translate
 
-        # reshape the X,Y,Z components
-        Xc = np.reshape(z[0, :], self.shape)
-        Yc = np.reshape(z[1, :], self.shape)
-        Zc = np.reshape(z[2, :], self.shape)
+            # reshape the X,Y,Z components
+            Xc = np.reshape(z[0, :], self.shape)
+            Yc = np.reshape(z[1, :], self.shape)
+            Zc = np.reshape(z[2, :], self.shape)
 
-        return (Xc, Yc, Zc)
+            return (Xc, Yc, Zc)
 
 
 class DisplayList:
