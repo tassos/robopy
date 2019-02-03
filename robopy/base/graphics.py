@@ -8,16 +8,107 @@ DATE: Tue Jan  8 17:34:00 2019
 """
 
 import sys
+import functools
+import time
+from math import floor
 from abc import ABCMeta, abstractmethod
 
-__all__ = ('Graphics', 'Gtransform', 'GraphicsRenderer',
-           'rgb_named_colors',
+__all__ = ('Graphics', 'Gtransform', 'GraphicsRenderer', 'animation_timer',
+           'rgb_named_colors', 'coerce_to_array_list',
            'plot', 'qplot', 'trplot', 'trplot2',
            'animate', 'panimate', 'qanimate', 'tranimate', 'tranimate2')
+
 
 ###
 ### MODULE CLASS DEFINITIONS
 ###
+
+### Implementation Note:
+###
+### The animation_timer class timer_wrapped_func() is a blocking routine.
+### As currently coded, it emulates quasi-realtime animation with images
+### captured at a frame rate less than the animation timer rate. If the
+### animation rendering and image capture cannot be performed within a
+### frame time step, animated images will not be produced at the desired
+### frame rate.
+
+class animation_timer(object):
+    """
+    Animation timer class to provide timed wrapper for transform functions.
+
+    This wrapper class may be used to wrap transformation functions passed
+    to the animateDisplayList() method of the GraphicsMPL and GraphicsIPV
+    classes, and to wrap the transformation functions defined in the
+    animateSerialLink() method of the Mpl3dArtist and Ipv3dVisual classes.
+    """
+
+    def __init__(self, timer_rate, frame_rate, real_time=False):
+
+        assert(timer_rate > 0)
+        assert(frame_rate > 0)
+        assert(timer_rate >= frame_rate)
+
+        # instantiation arguments
+        self.timer_rate = timer_rate  # cycles per second
+        self.frame_rate = frame_rate  # frames per second
+        self.real_time  = real_time   # real-time emulation flag
+
+        # internal static properties
+        self.timer_step_sec  = 1.0 / self.timer_rate
+        self.timer_step_msec = 1000.0 / self.timer_rate
+        self.frame_step_msec = 1000.0 / self.frame_rate
+
+        # internal dynamic properties
+        self.last_time   = 0.0    # time at last call to time.time()
+        self.timer_count = 0      # number of timer cycles
+        self.frame_count = 0      # number of frames captured
+        self.timer_elap_msec = 0  # timer elapsed time in msec
+        self.frame_save_msec = 0  # frame capture time in msec
+
+    def __call__(self, func):
+        @functools.wraps(func)
+        def timer_wrapped_func(*args, **kwargs):
+            """
+            Wrapped transform function must have as its first two args,
+            n for step number and tstep for step time (sec or None).
+            :param args:    n, [tstep|None], ...
+            :param kwargs:  a dictionary of keyword name/value pairs
+            :return: that which is returned by the transform function.
+            """
+            # ensure there are at least two argument
+            assert(len(args) >= 2)
+            # check for tstep value in wrapped function args list
+            if args[1] is not None:
+                tstep = args[1]
+                if type(tstep) is [int, str]:
+                    tstep = float(tstep)
+                if type(tstep) is float:
+                    if tstep > 0.0:
+                       if tstep != self.timer_step_sec:
+                           # TODO: adjust current timer and frame counts?
+                           pass
+                       self.timer_step_sec = tstep
+                       self.timer_step_msec = 1000.0 * self.timer_step_sec
+            # if real-time, call wrapped function after specified delay
+            if self.real_time:
+                t_wait = self.timer_step_sec - (time.time() - self.last_time)
+                if (t_wait > 0.0):
+                    time.sleep(t_wait)
+            value = func(self.timer_count, self.timer_step_sec, *args[2:], **kwargs)
+            # increment timer step counter
+            self.timer_count += 1
+            # update animation elapsed time (msec)
+            self.timer_elap_msec = self.timer_count*self.timer_step_msec
+            # check if sufficient time elapsed since last image capture event
+            if (self.timer_elap_msec - self.frame_save_msec) >= self.frame_step_msec:
+                 # TODO: capture image for recording media
+                self.frame_count += 1
+                self.frame_save_msec = self.timer_elap_msec
+            self.last_time = time.time()
+            return value
+
+        return timer_wrapped_func
+
 
 class Graphics(metaclass=ABCMeta):
     """ 
@@ -257,6 +348,11 @@ from . import tb_parseopts as tbpo
 from . import graphics_vtk as gVtk
 from . import graphics_mpl as gMpl
 from . import graphics_ipv as gIpv
+from . import common
+from . import transforms
+from . import quaternion
+
+import numpy as np
 
 gRenderer = None  # the instantiated graphics rendering object
 
@@ -272,12 +368,12 @@ def GraphicsRenderer(renderer):
     if renderer == 'VTK':
         gRenderer = gVtk.VtkPipeline()
     elif renderer == 'MPL':
-        gRenderer = gMpl.Mpl3dArtist(0)
+        gRenderer = gMpl.Mpl3dArtist(0)  # default figure number is 0
     elif renderer == 'IPV':
-        gRenderer = gIpv.Ipv3dVisual(1)
+        gRenderer = gIpv.Ipv3dVisual(0)  # default figure key is 0
     else:
         print("The %s renderer is not supported." % renderer)
-        print("Renderer must be VTK or MPL (Matplotlib).")
+        print("Renderer must be VTK, MPL (Matplotlib) or IPV (ipyvolume).")
         sys.exit()
     return gRenderer
     
@@ -290,7 +386,38 @@ def rgb_named_colors(colors):
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
         return gIpv.rgb_named_colors(colors)
 
+def coerce_to_array_list(tqr):
+    if type(tqr) in (list, tuple, transforms.RTBMatrix):
+        if isinstance(tqr[0], transforms.RTBMatrix):
+            T = tqr.to_ndarray()
+        elif isinstance(tqr[0], quaternion.Quaternion):
+            T = np.asarray(tqr.tr())
+        elif common.isrot(tqr[0]):
+            T = np.asarray(transforms.r2t(tqr))
+        elif common.ishomog(tqr[0], (4, 4)):
+            T = np.asarray(tqr)
+        else:
+            msg = "list of unknown transforms of type {0}".format(type(tqr[0]))
+            ValueError(msg)
+    else:
+        if isinstance(tqr, quaternion.Quaternion):
+            T = [np.asarray(tqr.tr())]
+        elif common.isrot(tqr):
+            T = [np.asarray(transforms.r2t(tqr))]
+        elif common.ishomog(tqr, (4, 4)):
+            T = [np.asarray(tqr)]
+        else:
+            msg = "unknown transform of type {0}".format(type(tqr))
+            ValueError(msg)
+    return T
+
 def plot(obj, **kwargs):
+    """
+    Displays a pose plot for the given Pose object.
+    :param obj: a Pose object
+    :param kwargs: graphics renderer and plot properties keyword name/value pairs
+    :return:
+    """
     global gRenderer
     if type(gRenderer) is type(gVtk.VtkPipeline()):
         opts = { 'dispMode' : 'VTK',
@@ -300,27 +427,59 @@ def plot(obj, **kwargs):
         pobj = gVtk.VtkPipeline(dispMode=opt.dispMode)
         pobj.plot(obj, **args)
     elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
-        pobj = gMpl.Mpl3dArtist(1)
-        pobj.plot(obj, **kwargs)
+        opts = { 'dispMode' : 'IPY',
+                 'fign'     : 1,
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        pobj = gMpl.Mpl3dArtist(opt.fign)
+        pobj.plot(obj, **args)
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
-        pobj = gIpv.Ipv3dVisual(1)
-        pobj.plot(obj, **kwargs)
+        opts = { 'dispMode' : 'IPY',
+                 'key'      : 1,
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        pobj = gIpv.Ipv3dVisual(opt.key)
+        pobj.plot(obj, **args)
 
 def qplot(obj, stance, unit='rad', dispMode='VTK', **kwargs):
+    """
+    Displays a SerialLink pose plot for the given SerialLink object.
+    :param obj: a SerialLink object
+    :param stance; a stance data structure
+    :param unit: 'rad' or 'deg'
+    :param dispMode: for VtkPipeline ['VTK', 'IPY', 'PIL'], for others just 'IPY'
+    :param kwargs: graphics renderer and plot properties keyword name/value pairs
+    :return:
+    """
     global gRenderer
     if type(gRenderer) is type(gVtk.VtkPipeline()):
-        opts = { 'dispMode' : 'VTK',
+        opts = { 'unit'     : unit,
+                 'dispMode' : 'VTK',
                }
         opt = tbpo.asSimpleNs(opts)
         (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
         gobj = gVtk.VtkPipeline(dispMode=dispMode)
         gobj.qplot(obj, stance, unit='rad', dispMode=dispMode, **kwargs)
     elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
-        gobj = gMpl.Mpl3dArtist(1)
-        gobj.qplot(obj, stance, unit='rad', **kwargs)
+        opts = { 'unit'     : unit,
+                 'dispMode' : 'IPY',
+                 'fign'     : 1,
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        gobj = gMpl.Mpl3dArtist(opt.fign)
+        gobj.qplot(obj, stance, unit=opt.unit, **args)
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
-        gobj = gIpv.Ipv3dVisual(1)
-        gobj.qplot(obj, stance, unit='rad', **kwargs)
+        opts = { 'unit'     : unit,
+                 'dispMode' : 'IPY',
+                 'key'      : 1,
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        gobj = gIpv.Ipv3dVisual(opt.key)
+        gobj.qplot(obj, stance, unit=opt.unit, **args)
     
 def tranimate(T):
     global gRenderer
@@ -330,17 +489,46 @@ def tranimate2(R):
     global gRenderer
     pass
     
-def trplot(T, handle=None, dispMode='VTK'):
+def trplot(T, handle=None, dispMode='VTK', **kwargs):
+    """
+    Plots a Cartesian coordinate axes frame for the given transform T.
+    :param T: a RTBMatrix, quaternion, homogeneous transform matrix or rotation matrix
+    :param handle; a Gtransform handle (tentatively)
+    :param dispMode: for VtkPipeline ['VTK', 'IPY', 'PIL'], for others just 'IPY'
+    :param kwargs: graphics renderer and plot properties keyword name/value pairs
+    :return:
+    """
     global gRenderer
-    if handle is not None:
-        if type(handle) is type(gVtk.VtkPipeline()):
-             handle.trplot(T)
-        elif type(handle) is type(super(gVtk).Hgtransform()):
-             pass  # do Hgtransform stuff
-        else:
-             pass  # do error stuff   
-    pobj = gVtk.VtkPipeline(dispMode=dispMode)
-    pobj.trplot(T)
+    if type(gRenderer) is type(gVtk.VtkPipeline()):
+        if handle is not None:
+            if type(handle) is type(gVtk.VtkPipeline()):
+                handle.trplot(T)
+            elif type(handle) is type(super(gVtk).Hgtransform()):
+                pass  # do Hgtransform stuff
+            else:
+                pass  # do error stuff
+        opts = { 'dispMode' : 'VTK',
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        gobj = gVtk.VtkPipeline(dispMode=dispMode)
+        gobj.trplot(T, unit='rad', dispMode=opt.dispMode, **args)
+    elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
+        opts = { 'dispMode' : 'IPY',
+                 'fign'     : 1,
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        gobj = gMpl.Mpl3dArtist(opt.fign)
+        gobj.trplot(T, unit='rad', dispMode=opt.dispMode, **args)
+    elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
+        opts = { 'dispMode' : 'IPY',
+                 'key'      : 1,
+               }
+        opt = tbpo.asSimpleNs(opts)
+        (opt, args) = tbpo.tb_parseopts(opt, **kwargs)
+        gobj = gIpv.Ipv3dVisual(opt.key)
+        gobj.trplot(T, unit='rad', dispMode=opt.dispMode, **args)
 
 def trplot2(T, handle=None, dispMode='VTk'):
     global gRenderer
@@ -378,6 +566,8 @@ def animate(obj, stances,
     global gRenderer
     
     opts = { 'unit'       : unit,
+             'fign'       : 1,
+             'key'        : 1,
              'timer_rate' : timer_rate,
              'gif'        : gif,
              'frame_rate' : frame_rate,
@@ -398,15 +588,15 @@ def animate(obj, stances,
                           unit=opt.unit, frame_rate=opt.frame_rate, gif=opt.gif, 
                           dispMode=opt.dispMode, **args)
     elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
-        gobj = gMpl.Mpl3dArtist(1)
+        gobj = gMpl.Mpl3dArtist(opt.fign)
         gobj.animate(obj, stances, 
-                          unit=opt.unit, frame_rate=opt.frame_rate, gif=opt.gif, 
-                          dispMode=opt.dispMode, **args)
+                          unit=opt.unit, timer_rate=opt.timer_rate, frame_rate=opt.frame_rate, gif=opt.gif,
+                          dispMode='IPY', **args)
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
-        gobj = gIpv.Ipv3dVisual(1)
+        gobj = gIpv.Ipv3dVisual(opt.key)
         gobj.animate(obj, stances,
-                          unit=opt.unit, frame_rate=opt.frame_rate, gif=opt.gif,
-                          dispMode=opt.dispMode, **args)
+                          unit=opt.unit, timer_rate=opt.timer_rate, frame_rate=opt.frame_rate, gif=opt.gif,
+                          dispMode='IPY', **args)
 
 def panimate(pose, other=None, duration=5, timer_rate=60, 
                    gif=None, frame_rate=10, **kwargs):
@@ -414,6 +604,8 @@ def panimate(pose, other=None, duration=5, timer_rate=60,
     
     opts = { 'other'      : other,
              'duration'   : duration,
+             'fign'       : 1,
+             'key'        : 1,
              'timer_rate' : timer_rate,
              'gif'        : gif,
              'frame_rate' : frame_rate,
@@ -432,10 +624,10 @@ def panimate(pose, other=None, duration=5, timer_rate=60,
                   frame_rate=opt.frame_rate)
         gobj.panimate(pose, other=opt.other, duration=opt.duration, **args)
     elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
-        gobj = gMpl.Mpl3dArtist(1)
+        gobj = gMpl.Mpl3dArtist(opt.fign)
         gobj.panimate(pose, other=opt.other, duration=opt.duration, **args)
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
-        gobj = gIpv.Ipv3dVisual(1)
+        gobj = gIpv.Ipv3dVisual(opt.key)
         gobj.panimate(pose, other=opt.other, duration=opt.duration, **args)
 
 def qanimate(obj, stances, unit='rad', dispMode='VTK', frame_rate=25, gif=None, **kwargs):
