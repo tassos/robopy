@@ -34,9 +34,9 @@ python3 setup.py install
 
 **Jupyter Notebook Example:**
 
-[nbviewer](https://nbviewer.jupyter.org/github/gedeschaines/robopy/blob/ipynb/notebooks/poseVTK/poseVTK.ipynb)
+[nbviewer](https://nbviewer.jupyter.org/github/gedeschaines/robopy/blob/dev/notebooks/poseVTK/poseVTK.ipynb)
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/gedeschaines/robopy/ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/gedeschaines/robopy/dev)
 
 **Puma 560 simulation:-**
 
