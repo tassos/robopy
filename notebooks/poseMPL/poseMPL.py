@@ -32,10 +32,10 @@ import robopy.base.model as model
 
 
 # Select a Graphics Rendering package to use.
-gobj = GraphicsRenderer('MPL')  # this sets graphics.gRenderer
+gobj = GraphicsRenderer('MPL')  # this sets graphics.gRenderer; returns Mpl3dArtist object
     
-# Display a red sphere to show default figure properties.
-gobj.draw_sphere()
+# Display a blue open-ended box to show default figure properties.
+gobj.draw_cube()
 gobj.show()
 
 
@@ -52,7 +52,7 @@ limits = [-1.5, 1.5, -1.5, 1.5, -1.5, 1.5]
 # In[4]:
 
 
-# Plot SE3 pose using MPL and display below.
+# Plot SE3 pose using MPL (matplotlib) and display below.
 gobj.close()  # close current figure 
 pose.SE3.Rx(theta=[45, 90], unit='deg').plot(dispMode=dMode, fign=1, z_up=True, limits=limits)
 
@@ -60,7 +60,7 @@ pose.SE3.Rx(theta=[45, 90], unit='deg').plot(dispMode=dMode, fign=1, z_up=True, 
 # In[5]:
 
 
-# Plot same SE2 transforms as previous cell, but use the trplot() function.
+# Plot same SE3 transforms as previous cell, but use the trplot() function.
 gobj.close()  # close current figure 
 T = tr.rotx([45, 90], unit='deg')
 trplot(T, fign=2)
@@ -69,7 +69,7 @@ trplot(T, fign=2)
 # In[6]:
 
 
-# Define a Puma506 robot model.
+# Define a Puma560 robot model.
 robot = model.Puma560()
     
 # Puma560 manipulator arm pose plot using MPL and displayed below.
@@ -97,6 +97,12 @@ f = np.concatenate((d, b, a, e, c, d), axis=1)
 # Note: Matplotlib is extremely slow at rendering of STL meshes.
 gobj.close()  # close current figure 
 robot.animate(stances=f, unit='deg', fign=4, timer_rate=60, frame_rate=30, dispMode=dMode)
+
+
+# In[8]:
+
+
+gobj.getAnimSL()
 
 
 # In[ ]:

@@ -33,8 +33,8 @@ import robopy.base.model as model
 # Select a Graphics Rendering package to use.
 gobj = GraphicsRenderer('IPV')  # this sets graphics.gRenderer
 
-# Display a red sphere to show default figure properties.
-gobj.draw_sphere()
+# Display a blue open-ended box to show default figure properties.
+gobj.draw_cube()
 gobj.show()
 
 
@@ -51,14 +51,14 @@ limits = [-1.5, 1.5, -1.5, 1.5, -1.5, 1.5]
 # In[4]:
 
 
-# Plot SE3 pose using MPL and display below.
+# Plot SE3 pose using IPV (ipyvolume) and display below.
 pose.SE3.Rx(theta=[45, 90], unit='deg').plot(dispMode=dMode, key=1, z_up=True, limits=limits)
 
 
 # In[5]:
 
 
-# Plot same SE2 transforms as previous cell, but use the trplot() function.
+# Plot same SE3 transforms as previous cell, but use the trplot() function.
 
 T = tr.rotx([45, 90], unit='deg')
 trplot(T, key=2)
@@ -67,7 +67,7 @@ trplot(T, key=2)
 # In[6]:
 
 
-# Define a Puma506 robot model.
+# Define a Puma560 robot model.
 robot = model.Puma560()
     
 # Puma560 manipulator arm pose plot using MPL and displayed below.
