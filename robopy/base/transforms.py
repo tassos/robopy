@@ -10,7 +10,7 @@ from . import common
 import unittest
 
 try:
-    from colored import fg, bg, attr
+    from termcolor.colored import fg, bg, attr
     _color = True
 except:
     _color = False
