@@ -593,7 +593,9 @@ class GraphicsVTK(Graphics):
                 return
 
         if self.getGIFfile() is not None:
-            if ((self.getTimerCount()*self.timer_step_msec) % self.frame_step_msec) == 0:
+            timer_elap_msec = self.getTimerCount()*self.timer_step_msec
+            frame_elap_msec = self.getScreenshotCount()*self.frame_step_msec
+            if (timer_elap_msec - frame_elap_msec) >= self.frame_step_msec:
                 imgfile = self.screenshot(filename=self.getGIFfile())
                 ### im = imageio.imread(imgfile)
                 im = PIL.Image.open(imgfile)
