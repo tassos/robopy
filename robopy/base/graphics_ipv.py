@@ -236,7 +236,7 @@ class GraphicsIPV(Graphics):
 
     ## Plot elements methods
 
-    def plot_parametric_shape(self, shape, solid=False, Tr=[], **opts):
+    def plot_parametric_shape(self, shape, solid=False, Tr=None, **opts):
         """
         Plot specified parametric shape.
         :param shape: geometric shape name ('box', beam', 'sphere', etc.)
@@ -248,17 +248,21 @@ class GraphicsIPV(Graphics):
         # create parametric shape xyz coordinate arrays
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
-        # define default list of one identity transform if necessary
-        if len(Tr) == 0:
+        # check if Tr is ...
+        if Tr is None or (type(Tr) is list and len(Tr) == 0):
+            # undefined or an empty list,
             Tr = [np.identity(4)]
+        elif type(Tr) in (np.ndarray, transforms.RTBMatrix) and len(Tr.shape) < 3:
+            # or a single transform
+            Tr = [Tr]
 
         # check if color option specified
         c = 'black'
         if 'c' in opts:
            c = opts['c']
 
-        # pack the xyz coordinate arrays
-        (xyz, dim0, dim1) = param_xyz_coord_arrays_packed(x ,y, z, Tr[0])
+        # pack the xyz coordinate arrays based on shape of transform
+        (xyz, dim0, dim1) = param_xyz_coord_arrays_packed(x ,y, z, Tr=Tr[0])
 
         # apply transform to packed xyz coordinate arrays
         n = len(Tr)
@@ -271,30 +275,38 @@ class GraphicsIPV(Graphics):
         # plot the transformed xyz coordinate arrays as meshes
 
         if shape == 'frame':
-            # coordinate frame axes line segments
+            # coordinate frame +axes vectors
+
+            ### Implementation Note:
+            ###
+            ### arrowcols presumes colors of Lx, Ly, Lz and quiver are
+            ### to be red, green, blue for all frames rendered:
+
+            colors_rgb = rgb_named_colors(['red', 'green', 'blue'])
+            arrowcols = np.zeros((1, 3, 3))
+            arrowcols[0, 0, 0] = colors_rgb[0][0]
+            arrowcols[0, 1, 1] = colors_rgb[1][1]
+            arrowcols[0, 2, 2] = colors_rgb[2][2]
+
             for k in range(n):
-                Lx = p3.plot(xr[k, 0:2, 0], yr[k, 0:2, 0], zr[k, 0:2, 0], color='red')
+                # draw +x, +y, +z axes line segments
+                Lx = p3.plot(xr[k, 0:2, 0], yr[k, 0:2, 0], zr[k, 0:2, 0], color=colors_rgb[0])
                 Lx.material.visible = False
                 Lx.line_material.visible = True
-                Ly = p3.plot(xr[k, 0:2, 1], yr[k, 0:2, 1], zr[k, 0:2, 1], color='green')
+                Ly = p3.plot(xr[k, 0:2, 1], yr[k, 0:2, 1], zr[k, 0:2, 1], color=colors_rgb[1])
                 Ly.material.visible = False
                 Ly.line_material.visible = True
-                Lz = p3.plot(xr[k, 0:2, 2], yr[k, 0:2, 2], zr[k, 0:2, 2], color='blue')
+                Lz = p3.plot(xr[k, 0:2, 2], yr[k, 0:2, 2], zr[k, 0:2, 2], color=colors_rgb[2])
                 Lz.material.visible = False
                 Lz.line_material.visible = True
-                # coordinate frame axes line segment tip arrows
+                # calculate and draw +x, +y, +z axes line segment tip quiver vectors
                 tail = 0
                 head = 1
                 vxr = xr[k, head, :] - xr[k, tail, :]
                 vyr = yr[k, head, :] - yr[k, tail, :]
                 vzr = zr[k, head, :] - zr[k, tail, :]
-                arrowcols = np.zeros((1, 3, 3))
-                arrowcols[0, 0, 0] = 1.0
-                arrowcols[0, 1, 1] = 1.0
-                arrowcols[0, 2, 2] = 1.0
-                p3.quiver(xr[k, head, :], yr[k, head, :], zr[k, head, :],
-                          vxr[:], vyr[:], vzr[:],
-                          size=10, size_selected=5, color=arrowcols, color_selected='gray')
+                p3.quiver(xr[k, head, :], yr[k, head, :], zr[k, head, :], vxr[:], vyr[:], vzr[:],
+                         size=10, size_selected=5, color=arrowcols, color_selected='gray')
                 '''
                 ### for whenever ipyvolume can display text
                 p3.plot_text(xr[:, head, 0], yr[:, head, 0], zr[:, head, 0], 'X', ha='left', va='center', color='r')
@@ -302,21 +314,27 @@ class GraphicsIPV(Graphics):
                 p3.plot_text(xr[:, head, 2], yr[:, head, 2], zr[:, head, 2], 'Z', ha='left', va='center', color='b')
                 '''
         else:
-            ### Implementaion Note:
+            wire = not solid
+            surf = solid
+
+            ### Implementation Note:
             ###
-            ### Passing [:,M,N] ndarrays to plot_mesh probably introduces implicit
-            ### streaming; not sure ipyvolume expects or can properly handle this.
+            ### colors_rgb presumes colors of all rendered meshes are c
+
+            colors_rgb = rgb_named_colors([c])
+
+            ### Implementation Note:
+            ###
+            ### Passing [:,dim0,dim1] ndarrays to plot_mesh probably introduces
+            ### implicit streaming; not sure ipyvolume expects or can properly
+            ### handle this as it can with scatter and quiver plots.
             ###
             ### p3.plot_mesh(xr[:,0:dim0,0:dim1],
             ###              yr[:,0:dim0,0:dim1],
-            ###              zr[:,0:dim0,0:dim1], wireframe=False, surface=solid, color=c)
-            ###
-            wire = not solid
-            surf = solid
+            ###              zr[:,0:dim0,0:dim1], wireframe=wire, surface=surf, color=colors_rgb[0])
+
             for k in range(n):
-                p3.plot_mesh(xr[k, 0:dim0, 0:dim1],
-                             yr[k, 0:dim0, 0:dim1],
-                             zr[k, 0:dim0, 0:dim1], wireframe=wire, surface=surf, color=c)
+                p3.plot_mesh(xr[k], yr[k], zr[k], wireframe=wire, surface=surf, color=colors_rgb[0])
 
     def draw_axes2(self, *args, **kwargs):
         """ Graphics package draw plot axes for 2D space.
@@ -706,6 +724,8 @@ class Ipv3dVisual(GraphicsIPV):
         
         if len(args) < 1 :  # crude method for handling type tests
             return None
+
+        super(Ipv3dVisual, self).__init__(self.getFigure())
 
         self.setFigure(args[0])
 

@@ -19,6 +19,7 @@ from robopy.base.graphics import Graphics
 from robopy.base.display_list import *
 from robopy.base.param_geoms import *
 
+from . import transforms
 from . import graphics as rtbG
 from . import pose as Pose
 from . import serial_link as SerialLink
@@ -263,7 +264,7 @@ class GraphicsMPL(Graphics):
         
     ## Plot elements methods
 
-    def plot_parametric_shape(self, shape, solid=False, Tr=[], **opts):
+    def plot_parametric_shape(self, shape, solid=False, Tr=None, **opts):
         """
         Plot specified parametric shape.
         :param shape: geometric shape name ('box', beam', 'sphere', etc.)
@@ -275,17 +276,21 @@ class GraphicsMPL(Graphics):
         # create parametric shape xyz coordinate arrays
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
-        # define default list of one identity transform if necessary
-        if len(Tr) == 0:
+        # check if Tr is ...
+        if Tr is None or (type(Tr) is list and len(Tr) == 0):
+            # undefined or an empty list,
             Tr = [np.identity(4)]
+        elif type(Tr) in (np.ndarray, transforms.RTBMatrix) and len(Tr.shape) < 3:
+            # or a single transform
+            Tr = [Tr]
 
         # check if color option specified
         c = 'k'  # black
         if 'c' in opts:
            c = opts['c']
 
-        # pack the xyz coordinate arrays
-        (xyz, dim0, dim1) = param_xyz_coord_arrays_packed(x ,y, z, Tr[0])
+        # pack the xyz coordinate arrays based on shape of transform
+        (xyz, dim0, dim1) = param_xyz_coord_arrays_packed(x ,y, z, Tr=Tr[0])
 
         # apply transform to packed xyz coordinate arrays
         n = len(Tr)
@@ -300,15 +305,26 @@ class GraphicsMPL(Graphics):
         ax = self.getFigureAxes()
 
         if shape == 'frame':
-            tail = 0
-            head = 1
+
             ax_label = ['x', 'y', 'z']
+
+            ### Implementation Note:
+            ###
+            ### c_tr_label, c_ax_arrow and c_ax_label presumes specified colors
+            ### are for all frames rendered.
+
             c_tr_label = 'k'
             c_ax_arrow = ['k', 'k', 'k']
             c_ax_label = ['r','g','b']
+
+            # calculate +x, +y, +z axes vectors
+            tail = 0
+            head = 1
             vxr = xr[:, head, :] - xr[:, tail, :]
             vyr = yr[:, head, :] - yr[:, tail, :]
             vzr = zr[:, head, :] - zr[:, tail, :]
+
+            # draw and label +x, +y, +z axes quiver vectors
             for k in range(n):
                 tr_label = "Tr{0}".format(k)
                 ax.quiver(xr[k, tail, 0], yr[k, tail, 0], zr[k, tail, 0], vxr[k, 0], vyr[k, 0], vzr[k, 0],
@@ -328,14 +344,19 @@ class GraphicsMPL(Graphics):
         else:
             if solid:
                 for k in range(n):
-                    ax.plot_surface(xr[k, 0:dim0, 0:dim1],
-                                    yr[k, 0:dim0, 0:dim1],
-                                    zr[k, 0:dim0, 0:dim1], color=c)
+                    ax.plot_surface(xr[k], yr[k], zr[k], color=c)
+
             else:
                 for k in range(n):
-                    ax.plot_wireframe(xr[k, 0:dim0, 0:dim1],
-                                      yr[k, 0:dim0, 0:dim1],
-                                      zr[k, 0:dim0, 0:dim1], color=c)
+                    ax.plot_wireframe(xr[k], yr[k], zr[k], color=c)
+                ax.get_figure().canvas.draw()
+
+        # force figure draw
+        if ax.get_figure() is self.getFigure():
+            self.getFigure().canvas.draw()
+        else:
+            # this implies current figure is default figure 0.
+            plt.gcf().canvas.draw()
 
     def draw_axes2(self, *args, **kwargs):
         """ Graphics package draw plot axes for 2D space.
