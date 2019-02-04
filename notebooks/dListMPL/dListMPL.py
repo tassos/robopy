@@ -94,7 +94,7 @@ gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer; returns Mpl3dArtist o
 
 rgb = gmpl.rgb_named_colors(['purple'])
 gMpl.plot_parametric_shape('sphere', solid=True, c=rgb[0])
-gMpl.show()
+gMpl.draw()
 
 # The purple sphere should be displayed in Figure 0 above.
 
