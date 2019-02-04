@@ -250,7 +250,7 @@ class GraphicsIPV(Graphics):
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
         # define default list of one identity transform if necessary
-        if not Tr:
+        if Tr is not []:
             Tr = [np.identity(4)]
 
         # check if color option specified
