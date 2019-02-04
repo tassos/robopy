@@ -245,12 +245,11 @@ class GraphicsIPV(Graphics):
         :param opts: plot options name/value pairs
         :return:
         """
-
         # create parametric shape xyz coordinate arrays
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
         # define default list of one identity transform if necessary
-        if Tr is []:
+        if len(Tr) == 0:
             Tr = [np.identity(4)]
 
         # check if color option specified
