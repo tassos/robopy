@@ -13,8 +13,8 @@ import os  # for checking values of environment variables.
 import matplotlib
 matplotlib.use('Qt4Agg')
 get_ipython().run_line_magic('matplotlib', 'notebook')
-from matplotlib import rc         # needed to set Matplotlib animation._repr_html_()
 
+from matplotlib import rc         # needed to set Matplotlib animation._repr_html_()
 rc('animation', html='jshtml')    # Matplotlib animations will be HTML wrapped JavaScript
 
 """ RoboPy imports
@@ -87,7 +87,7 @@ gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer; returns Mpl3dArtist o
 # Figure 0 with an empty XYZ axes system will be displayed below.
 
 
-# In[9]:
+# In[8]:
 
 
 # Display a mesh grid geometric object to show the default figure properties.
@@ -99,7 +99,7 @@ gMpl.show()
 # The purple sphere should be displayed in Figure 0 above.
 
 
-# In[10]:
+# In[9]:
 
 
 # Give a graphics renderer the DisplayList to plot (gRenderer.plot()).
@@ -109,7 +109,7 @@ gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer (creates new Figure 0)
 gMpl.plot(dl, limits=limits)    # plot display list 'dl' created above.
 
 
-# In[11]:
+# In[10]:
 
 
 # Define transform function to animate DisplayListItems.
@@ -124,7 +124,7 @@ def transFunc(t):
     return tr.trotx(2.0*t, unit="deg")
 
 
-# In[12]:
+# In[11]:
 
 
 # Give the graphics renderer the DisplayList to animate.
@@ -134,7 +134,7 @@ gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer (creates new Figure 0)
 gMpl.animate(dl, transFunc, duration=5.0, frame_rate=30, limits=limits)
 
 
-# In[13]:
+# In[12]:
 
 
 # Wait until the animation completes before running this cell to create a controlled animation.
