@@ -99,7 +99,7 @@ gobj.close()  # close current figure
 robot.animate(stances=f, unit='deg', fign=4, timer_rate=60, frame_rate=30, dispMode=dMode)
 
 
-# In[8]:
+# In[ ]:
 
 
 gobj.getAnimSL()
