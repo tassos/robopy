@@ -7,9 +7,14 @@ DATE: Tue Jan 27 21:05:00 2019
 @author: garyd
 """
 
+### Implementation Note:
+###
+### This module was designed to be used independent of the official
+### RoboPy base modules.
+
 """
 Module provides routines to generate and transform representative
-geometric solid primitives using parametric shape functions.
+geometric solid primitives defined by parametric shape functions.
 """
 import functools
 import numpy as np
@@ -29,9 +34,6 @@ __all__ = ('apply_defaults_opts',
            'param_xyz_coord_arrays_packed_xform',)
 
 
-# Wrapper for parametric shape functions to allow defaults and
-# optional values to be passed to functions as its arguments.
-
 def _zero_dot():
     """
     Returns a zero point.
@@ -42,6 +44,8 @@ def _zero_dot():
     z = np.zeros((1, 1))
     return (x, y, z)
 
+# Wrapper for parametric shape functions to allow defaults and
+# optional values to be passed to functions as its arguments.
 
 def apply_defaults_opts(func, defaults, opts):
     """
@@ -95,7 +99,7 @@ def coerce_xyz_to_Narrays(func):
 ### Implementation Note:
 ###
 ### See mesh_geoms and display_list modules for more efficient implementation
-### of parametric shape functions utilizing the transforms module.
+### of parametric shape functions utilizing the RoboPy base transforms module.
 
 
 def parametric_frame(s):
