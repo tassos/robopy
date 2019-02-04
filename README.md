@@ -10,9 +10,11 @@ A Python 3 implementation of Peter Corke's Robotics Toolbox
 
 **Dependencies:**
 - [VTK](https://www.vtk.org/)
+- [ipyvolume](https://github.com/maartenbreddels/ipyvolume)
 - [Matplotlib](https://matplotlib.org/)
 - [NumPy](http://www.numpy.org/)
 - [numpy-stl](https://pypi.org/project/numpy-stl/)
+- [trimesh](https://pypi.org/project/trimesh/)
 - [Pillow](https://python-pillow.org/)
 - [Scipy](https://www.scipy.org/)
 
