@@ -90,13 +90,19 @@ gMpl = GraphicsRenderer('MPL')  # sets graphics.gRenderer; returns Mpl3dArtist o
 # In[8]:
 
 
-# Display a mesh grid geometric object to show the default figure properties.
+# Display a mesh grid geometric object to show default figure properties.
 
 rgb = gmpl.rgb_named_colors(['purple'])
 gMpl.plot_parametric_shape('sphere', solid=True, c=rgb[0])
-gMpl.draw()
 
-# The purple sphere should be displayed in Figure 0 above.
+# The plot_parametric_shape() method calls getFigure().canvas.draw(), 
+# which means a call to show() or draw() as
+#
+# gMpl.show() or gMpl.draw()
+#
+# in this case is not required since Figure 0 is already displayed.
+
+# A purple sphere should be displayed in Figure 0 above.
 
 
 # In[9]:
