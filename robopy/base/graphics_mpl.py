@@ -263,14 +263,23 @@ class GraphicsMPL(Graphics):
         
     ## Plot elements methods
 
-    def plot_parametric_shape(self, shape, solid=False, Tr=[np.identity(4)], **opts):
-        """ Plot specified parametric shape
+    def plot_parametric_shape(self, shape, solid=False, Tr=[], **opts):
         """
-
+        Plot specified parametric shape.
+        :param shape: geometric shape name ('box', beam', 'sphere', etc.)
+        :param solid: True for plot surface, False for plot wire mesh
+        :param Tr: list of homogeneous or rotation transform matrices
+        :param opts: plot options name/value pairs
+        :return:
+        """
         # create parametric shape xyz coordinate arrays
-
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
+        # define default list of one identity transform if necessary
+        if not Tr:
+            Tr = [np.identity(4)]
+
+        # check if color option specified
         c = 'k'  # black
         if 'c' in opts:
            c = opts['c']
@@ -280,9 +289,9 @@ class GraphicsMPL(Graphics):
 
         # apply transform to packed xyz coordinate arrays
         n = len(Tr)
-        xr = np.ndarray((n, x.shape[0], x.shape[1]));
-        yr = np.ndarray((n, y.shape[0], y.shape[1]));
-        zr = np.ndarray((n, z.shape[0], z.shape[1]));
+        xr = np.ndarray((n, x.shape[0], x.shape[1]))
+        yr = np.ndarray((n, y.shape[0], y.shape[1]))
+        zr = np.ndarray((n, z.shape[0], z.shape[1]))
         for k in range(n):
             (xr[k,:,:], yr[k,:,:], zr[k,:,:]) = param_xyz_coord_arrays_packed_xform(xyz, dim0, dim1, Tr[k])
 
@@ -319,10 +328,14 @@ class GraphicsMPL(Graphics):
         else:
             if solid:
                 for k in range(n):
-                    ax.plot_surface(xr[k,:,:], yr[k,:,:], zr[k,:,:], color=c)
+                    ax.plot_surface(xr[k, 0:dim0, 0:dim1],
+                                    yr[k, 0:dim0, 0:dim1],
+                                    zr[k, 0:dim0, 0:dim1], color=c)
             else:
                 for k in range(n):
-                    ax.plot_wireframe(xr[k,:,:], yr[k,:,:], zr[k,:,:], color=c)
+                    ax.plot_wireframe(xr[k, 0:dim0, 0:dim1],
+                                      yr[k, 0:dim0, 0:dim1],
+                                      zr[k, 0:dim0, 0:dim1], color=c)
 
     def draw_axes2(self, *args, **kwargs):
         """ Graphics package draw plot axes for 2D space.
@@ -363,8 +376,14 @@ class GraphicsMPL(Graphics):
         """
         raise NotImplementedError('Need to define animate method.')
 
-    def show(self):
-        plt.show(block=True)
+    def draw(self):
+        plt.draw()
+
+    def show(self, block=True):
+        if plt.ion():
+           plt.show(block=False)
+        else:
+           plt.show(block=block)
     
     def close(self):
         plt.close()

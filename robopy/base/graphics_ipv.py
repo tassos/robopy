@@ -236,15 +236,25 @@ class GraphicsIPV(Graphics):
 
     ## Plot elements methods
 
-    def plot_parametric_shape(self, shape, solid=False, Tr=[np.identity(4)], **opts):
-        """ Plot specified parametric shape
+    def plot_parametric_shape(self, shape, solid=False, Tr=[], **opts):
+        """
+        Plot specified parametric shape.
+        :param shape: geometric shape name ('box', beam', 'sphere', etc.)
+        :param solid: True for plot surface, False for plot wire mesh
+        :param Tr: list of homogeneous or rotation transform matrices
+        :param opts: plot options name/value pairs
+        :return:
         """
 
         # create parametric shape xyz coordinate arrays
-
         (x, y, z) = param_xyz_coord_arrays(shape, **opts)
 
-        c = 'black'  # black
+        # define default list of one identity transform if necessary
+        if not Tr:
+            Tr = [np.identity(4)]
+
+        # check if color option specified
+        c = 'black'
         if 'c' in opts:
            c = opts['c']
 
@@ -293,14 +303,21 @@ class GraphicsIPV(Graphics):
                 p3.plot_text(xr[:, head, 2], yr[:, head, 2], zr[:, head, 2], 'Z', ha='left', va='center', color='b')
                 '''
         else:
-            if solid:
-               p3.plot_mesh(xr[:,0:dim0,0:dim1],
-                            yr[:,0:dim0,0:dim1],
-                            zr[:,0:dim0,0:dim1], wireframe=False, surface=True, color=c)
-            else:
-               p3.plot_mesh(xr[:,0:dim0,0:dim1],
-                            yr[:,0:dim0,0:dim1],
-                            zr[:,0:dim0,0:dim1], wireframe=True, surface=False, color=c)
+            ### Implementaion Note:
+            ###
+            ### Passing [:,M,N] ndarrays to plot_mesh probably introduces implicit
+            ### streaming; not sure ipyvolume expects or can properly handle this.
+            ###
+            ### p3.plot_mesh(xr[:,0:dim0,0:dim1],
+            ###              yr[:,0:dim0,0:dim1],
+            ###              zr[:,0:dim0,0:dim1], wireframe=False, surface=solid, color=c)
+            ###
+            wire = not solid
+            surf = solid
+            for k in range(n):
+                p3.plot_mesh(xr[k, 0:dim0, 0:dim1],
+                             yr[k, 0:dim0, 0:dim1],
+                             zr[k, 0:dim0, 0:dim1], wireframe=wire, surface=surf, color=c)
 
     def draw_axes2(self, *args, **kwargs):
         """ Graphics package draw plot axes for 2D space.
