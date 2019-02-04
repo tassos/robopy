@@ -41,7 +41,7 @@ gobj.show()
 # In[3]:
 
 
-# Define some GraphicsIPV parameters whcich will be used in plot()
+# Define some GraphicsIPV parameters which will be used in plot()
 # method calls in following cells.
 
 dMode = 'IPY'
