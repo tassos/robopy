@@ -80,7 +80,7 @@ else:
         # platform with Python 3 (see file header comment block above).
 
         # Determine if in the root directory tree of a cloned robopy 
-        # repository or ropopy-ipynb respository source distribution. 
+        # repository or robopy-ipynb respository source distribution. 
 
         dirs = thisdir.split(os.sep)
 
