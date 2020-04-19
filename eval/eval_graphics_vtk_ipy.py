@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FILE: eval_graphics_vtk.py
+FILE: eval_graphics_vtk_ipy.py
 DATE: Wed Jan  9 07:46:46 2019
 
 @author: garyd
