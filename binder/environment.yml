@@ -13,6 +13,7 @@ dependencies:
       - numpy
       - numpy-stl
       - termcolor
+      - colored==1.0.3
       - trimesh
       - scipy
       - scikit-image>=0.13
