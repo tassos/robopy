@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FILE: eval_display_list_mpl.py
+FILE: eval_display_list_ipv.py
 DATE: Wed Jan 23 20:21:00 2019
 
 @author: garyd
