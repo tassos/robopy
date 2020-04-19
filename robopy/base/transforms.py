@@ -10,7 +10,7 @@ from . import common
 import unittest
 
 try:
-    from termcolor.colored import fg, bg, attr
+    from colored import fg, bg, attr
     _color = True
 except:
     _color = False
@@ -1080,7 +1080,7 @@ def trexp2(S, theta=None):
             w = S
         else:
             raise AttributeError("Expecting scalar or 2x2")
-        eps = np.finfo(tr.dtype).eps  # precision for this type of matrix
+        eps = np.finfo(w.dtype).eps  # precision for this type of matrix
         if theta is None:
             if np.linalg.norm(w) < 10 * eps:
                 return np.eye(2)
