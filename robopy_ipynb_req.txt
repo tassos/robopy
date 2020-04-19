@@ -4,6 +4,7 @@ imageio
 numpy
 numpy-stl
 termcolor
+colored
 trimesh
 scipy
 scikit-image>=0.13
