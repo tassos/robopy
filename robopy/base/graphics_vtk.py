@@ -742,28 +742,29 @@ class GraphicsVTK(Graphics):
     def tranimate2(self, *args, **kwargs):
         raise NotImplementedError('Need to define tranimate2 method.')
         
-    # Display List Interface - These methods must be defined in Mpl3dArtist Class
+    # Display List Interface - These methods must be defined in VtkPipeline Class?
+    #                          (in graphics_mpl.py they are defined in GraphicsMPL Class)
 
     def renderDisplayListItem(self, *args, **kwargs):
-        """ GraphicsMPL class renderDisplayListItem
+        """ GraphicsVTK class renderDisplayListItem
         """
         print("* Not yet implemented.")
         return None
 
     def renderDisplayList(self, *args, **kwargs):
-        """ GraphicsMPL class renderDisplayList
+        """ GraphicsVTk class renderDisplayList
         """
         print("* Not yet implemented.")
         return None
 
     def plotDisplayList(self, *args, **kwargs):
-        """ GraphicsMPL class plotDisplayList
+        """ GraphicsVTk class plotDisplayList
         """
         print("* Not yet implemented.")
         return None
 
     def animateDisplayList(self, *args, **kwargs):
-        """ GraphicsMPL class animateDisplayList
+        """ GraphicsVTK class animateDisplayList
         """
         print("* Not yet implemented.")
         return None
