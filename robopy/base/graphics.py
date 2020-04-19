@@ -633,7 +633,7 @@ def panimate(pose, other=None, duration=5, timer_rate=60,
 def qanimate(obj, stances, unit='rad', dispMode='VTK', frame_rate=25, gif=None, **kwargs):
     global gRenderer
     gobj = gVtk.VtkPipeline(dispMode=dispMode)
-    gobj.qanimate(obj, stances, unit=unit, frame_rate=frame_rate, gif=gif)
+    gobj.qanimate(obj, stances, unit=unit, frame_rate=frame_rate, gif=gif, **kwargs)
     
 def tranimate(obj, stances, unit='rad', dispMode='VTK', frame_rate=25, gif=None, **anim_params):
     global gRenderer
