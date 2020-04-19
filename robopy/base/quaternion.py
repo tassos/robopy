@@ -328,7 +328,7 @@ class UnitQuaternion(Quaternion):
         from .pose import SO3
         SO3.np(self.r()).plot(dispMode=dispMode)
                 
-    def animate(self, qr=None, dispMode='VTK', duration=5, gif=None):
+    def animate(self, qr=None, dispMode='VTK', duration=5, gif=None, **kwargs):
         graphics.qanimate(self, qr=qr, 
                                 dispMode=dispMode, duration=duration, 
                                 gif=gif, **kwargs)
@@ -444,7 +444,8 @@ class UnitQuaternion(Quaternion):
         return self.to_rot()
 
     def q2tr(self):
-        return r2t(self.to_rot())
+        from .transforms import r2t
+        return r2t(self.q2r())
 
     @staticmethod
     def tr2q(t):
