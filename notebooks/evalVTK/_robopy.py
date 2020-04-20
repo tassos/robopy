@@ -1,10 +1,10 @@
 """
 Imports RoboPy module
 
-This file is a temporary component of the ipynb branch of RoboPy for the
+This file is a temporary component of the dev branch of RoboPy for the
 porting RTB to Python development effort used to facilitate execution of
 Python scripts from within the directory hierarchy for a cloned robopy
-repository or unpacked robopy-ipynb repository source distribution work
+repository or unpacked robopy-dev repository source distribution work
 space.
 
 If this robopy module version is installed, then use of 'import _robopy'
@@ -16,13 +16,13 @@ To avoid cluttering a repository's root directory with non package files,
 it's common practice to perform development work and test efforts in work,
 test and temp directories adjacent to the package module directory as
 shown in the following directory tree for a cloned robopy repository or
-unpacked robopy-ipynb repository source distribution.
+unpacked robopy-dev repository source distribution.
 
 Package directories such as eval and util are for development purposes
 and it's not anticipated they would be included in user oriented source
 distribution one would expect to install from PyPI or Conda-Forge.
 
-  +- robopy or robopy-ipynb
+  +- robopy or robopy-dev
      +- binder            - configuration files for MyBinder installation
      +- docs              - documentation
      +- eval              - development capability evaluation scripts
@@ -76,18 +76,18 @@ else:
         # The following assumes this file is in a subdirectory adjacent
         # to ./robopy or in a ./notebooks subdirectory of the RoboPy
         # directory tree for a cloned robopy repository or unpacked
-        # robopy-ipynb repository source distribution on an Ubuntu like
+        # robopy-dev repository source distribution on an Ubuntu like
         # platform with Python 3 (see file header comment block above).
 
         # Determine if in the root directory tree of a cloned robopy 
-        # repository or robopy-ipynb respository source distribution. 
+        # repository or robopy-dev respository source distribution.
 
         dirs = thisdir.split(os.sep)
 
         if 'robopy' in dirs :
             root = 'robopy'
-        elif 'robopy-ipynb' in dirs:
-            root = 'robopy-ipynb'
+        elif 'robopy-dev' in dirs:
+            root = 'robopy-dev'
         else:
             print("Could not locate RoboPy root.")
             sys.exit(-1)
