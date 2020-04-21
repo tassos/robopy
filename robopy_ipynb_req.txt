@@ -5,7 +5,7 @@ numpy
 numpy-stl
 termcolor
 colored
-trimesh
+trimesh==2.36.19
 scipy
 scikit-image>=0.13
 requests
