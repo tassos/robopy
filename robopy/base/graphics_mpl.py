@@ -46,7 +46,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # To produce animated GIFs
 ###import imageio
-from . import images2gif as img2gif
+from . import images2gif as imgs2gif
 
 # Support for IPython use in Jupyter Notebooks
 # and Spyder IDE

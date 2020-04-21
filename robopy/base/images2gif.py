@@ -138,7 +138,7 @@ def intToBin(i):
     """ Integer to two bytes """
     # divide in two parts (bytes)
     i1 = i % 256
-    i2 = int( i/256)
+    i2 = int(i/256)
     # make string (little endian)
     return i.to_bytes(2,byteorder='little')
 
@@ -236,11 +236,12 @@ class GifWriter:
         
         """
         
-        bb = b'\x21\xF9\x04'        
-        bb += bytes([((dispose & 3) << 2)|(transparent_flag & 1)])  # low bit 1 == transparency,
-        # 2nd bit 1 == user input , next 3 bits, the low two of which are used,
+        bb = b'\x21\xF9\x04'
+        bb += bytes([((dispose & 3) << 2)|(transparent_flag & 1)])
+        # low bit 1 == transparency,
+        # 2nd bit 1 == user input, next 3 bits, the low two of which are used,
         # are dispose.
-        bb += intToBin( int(duration*100) ) # in 100th of seconds        
+        bb += intToBin( int(duration*100 + 0.5) ) # in 100th of seconds        
         bb += bytes([transparency_index])
         bb += b'\x00'  # end
         return bb
@@ -405,7 +406,7 @@ class GifWriter:
             AD = Image.ADAPTIVE
             # for index,im in enumerate(images):
             for i in range(len(images)):
-                im = images[i].convert('RGB').convert('P', palette=AD, dither=dither,colors=255)
+                im = images[i].convert('RGB').convert('P', palette=AD, dither=dither, colors=255)
                 if self.transparency:
                     alpha = images[i].split()[3]
                     mask = Image.eval(alpha, lambda a: 255 if a <=128 else 0)
@@ -426,7 +427,8 @@ class GifWriter:
         # Obtain palette for all images and count each occurance
         palettes, occur = [], []
         for im in images:            
-            palettes.append( getheader(im)[0][3] )
+            ###palettes.append( getheader(im)[0][3] )
+            palettes.append( im.palette.getdata()[1] )
         for palette in palettes:
             occur.append( palettes.count( palette ) )
         
@@ -460,13 +462,19 @@ class GifWriter:
         
                 # Gather info
                 data = getdata(im)
-                imdes, data = data[0], data[1:]
+                ### imdes, data = data[0], data[1:]
+                imdes = b""
+                while data and len(imdes) < 11:
+                    imdes += data.pop(0)
+                assert len(imdes) == 11
 
                 transparent_flag = 0
                 if self.transparency: transparent_flag = 1
                 
                 graphext = self.getGraphicsControlExt(durations[frames],
-                                                        disposes[frames],transparent_flag=transparent_flag,transparency_index=255)
+                                                      disposes[frames],
+                                                      transparent_flag=transparent_flag,
+                                                      transparency_index=255)
 
                 # Make image descriptor suitable for using 256 local color palette
                 lid = self.getImageDescriptor(im, xys[frames])
@@ -781,7 +789,7 @@ class NeuQuant:
         
         # Initialize
         self.setconstants(samplefac, colors)
-        self.pixels = np.fromstring(image.tostring(), np.uint32)
+        self.pixels = np.fromstring(image.tobytes(), np.uint32)
         self.setUpArrays()
         
         self.learn()
@@ -834,7 +842,7 @@ class NeuQuant:
             return self.a_s[(alpha, rad)]
         except KeyError:
             length = rad*2-1
-            mid = length/2
+            mid = int(length/2)
             q = np.array(list(range(mid-1,-1,-1))+list(range(-1,mid)))
             a = alpha*(rad*rad - q*q)/(rad*rad)
             a[mid] = 0
@@ -914,7 +922,7 @@ class NeuQuant:
         alpha = self.INITALPHA
         
         i = 0;
-        rad = biasRadius >> self.RADIUSBIASSHIFT
+        rad = int(biasRadius) >> self.RADIUSBIASSHIFT
         if rad <= 1:
             rad = 0
         
@@ -962,7 +970,7 @@ class NeuQuant:
             if i%delta == 0:
                 alpha -= alpha / alphadec
                 biasRadius -= biasRadius / self.RADIUSDEC
-                rad = biasRadius >> self.RADIUSBIASSHIFT
+                rad = int(biasRadius) >> self.RADIUSBIASSHIFT
                 if rad <= 1:
                     rad = 0
         
@@ -1088,6 +1096,6 @@ if __name__ == '__main__':
     im[-50:-40,:] = 50
     
     images = [np.uint8(im*1.0), np.uint8(im*0.8), np.uint8(im*0.6), np.uint8(im*0.4), np.uint8(im*0)]
-    writeGif('test.gif',images, duration=0.5, dither=0)
+    writeGif('test.gif', images, duration=0.5, dither=False)
     
     print('done')

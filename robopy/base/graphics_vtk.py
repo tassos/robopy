@@ -31,7 +31,8 @@ except ImportError:
 
 # To produce animated GIFs
 ###import imageio
-from . import images2gif as img2gif
+### NOTE: images2gif may create corrupted GIF files.
+from . import images2gif as imgs2gif
 
 # Support for IPython use in Jupyter Notebooks
 # and Spyder IDE
@@ -572,7 +573,7 @@ class GraphicsVTK(Graphics):
         return filename
 
     def timer_tick(self):
-        ### import imageio
+        ###import imageio
         self.incTimerCount(1)
         
         if self.getTimerCount() >= self.getTotalTimeSteps():
@@ -581,10 +582,11 @@ class GraphicsVTK(Graphics):
                 assert len(self.getGIFdata()) > 0
                 imgfile = self.getGIFfile() + '.gif'
                 ###imageio.mimsave(imgfile, self.getGIFdata())
-                img2gif.writeGif(imgfile, self.getGIFdata(),
-                                 duration=self.frame_step_msec/1000.0, 
-                                 repeat=False, dither=False,
-                                 nq=0, subRectangles=True, dispose=None)
+                ### NOTE: images2gif may create corrupted GIF files.
+                imgs2gif.writeGif(imgfile, self.getGIFdata(),
+                                  duration=self.frame_step_msec/1000.0,
+                                  repeat=False, dither=False,
+                                  nq=0, subRectangles=True)
                 import os
                 for i in range(self.getScreenshotCount()):
                     os.remove(self.getGIFfile() + '-%04d.png' % (i))
@@ -597,7 +599,8 @@ class GraphicsVTK(Graphics):
             frame_elap_msec = self.getScreenshotCount()*self.frame_step_msec
             if (timer_elap_msec - frame_elap_msec) >= self.frame_step_msec:
                 imgfile = self.screenshot(filename=self.getGIFfile())
-                ### im = imageio.imread(imgfile)
+                ###im = imageio.imread(imgfile)
+                ### NOTE: images2gif may create corrupted GIF files.
                 im = PIL.Image.open(imgfile)
                 self.addGIFdata(im)
 
