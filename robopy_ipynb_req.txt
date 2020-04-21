@@ -10,5 +10,5 @@ scipy
 scikit-image>=0.13
 requests
 notebook>=5.3
-vtk
+vtk>=8
 xvfbwrapper
