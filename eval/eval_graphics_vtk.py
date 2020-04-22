@@ -87,6 +87,6 @@ if __name__ == '__main__':
     d = np.transpose(np.asmatrix(np.linspace(1, 450, 500)))
     e = np.asmatrix(np.zeros((500, 1)))
     f = np.concatenate((d, b, a, e, c, d), axis=1)
-    robot.animate(stances=f, unit='deg', 
-                  timer_rate=60, gif="Puma560", frame_rate=30)
+    gobj = robot.animate(stances=f, unit='deg',
+                         timer_rate=60, gif="Puma560", frame_rate=30)
     

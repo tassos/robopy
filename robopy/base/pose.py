@@ -619,20 +619,20 @@ class SO3(SuperPose):
         Pose animation of a single pose, or iterpolated between two poses.
         :param other: other Pose SO3 object to transition towards.
         :param duration: alloted transition time period (sec).
-        :param timer_rate:
-        :param gif:
+        :param timer_rate: timer update rate (frames per sec)
+        :param gif:  name for the written animated GIF image file.
         :param 
         :param **kwargs: see below
-        :return: None
+        :return: gobj - graphics object
         
         Keyword Arguments
           z_up   : whether or not the z-axis is upward
           limits : the plotting boundary x, y and z limits 
         """
-        graphics.panimate(self, other=other, 
-                                duration=duration, 
-                                timer_rate=timer_rate, gif=gif, **kwargs)
-        pass
+        gobj = graphics.panimate(self, other=other,
+                                 duration=duration,
+                                 timer_rate=timer_rate, gif=gif, **kwargs)
+        return gobj
     
     '''
     ### moved to graphics_vtk module

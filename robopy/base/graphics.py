@@ -561,7 +561,7 @@ def animate(obj, stances,
     :param gif: name for the written animated GIF image file.
     :param frame_rate: frame_rate for animation.
     :dispMode: display mode; one of ['VTK', 'IPY', 'PIL'].
-    :return: null
+    :return: gobj - graphics object
     """
     global gRenderer
     
@@ -587,19 +587,33 @@ def animate(obj, stances,
         gobj.animate(obj, stances, 
                           unit=opt.unit, frame_rate=opt.frame_rate, gif=opt.gif, 
                           dispMode=opt.dispMode, **args)
+        return gobj
     elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
         gobj = gMpl.Mpl3dArtist(opt.fign)
         gobj.animate(obj, stances, 
                           unit=opt.unit, timer_rate=opt.timer_rate, frame_rate=opt.frame_rate, gif=opt.gif,
                           dispMode='IPY', **args)
+        return gobj
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
         gobj = gIpv.Ipv3dVisual(opt.key)
         gobj.animate(obj, stances,
                           unit=opt.unit, timer_rate=opt.timer_rate, frame_rate=opt.frame_rate, gif=opt.gif,
                           dispMode='IPY', **args)
+        return gobj
+    return None
 
 def panimate(pose, other=None, duration=5, timer_rate=60, 
                    gif=None, frame_rate=10, **kwargs):
+    """
+    Animates pose object over nx6 dimensional input matrix, with each row representing list of 6 joint angles.
+    :param pose: a Pose object.
+    :param other: other Pose object to transition towards.
+    :param timer_rate: time_rate for motion. Could be any integer more than 1. Higher value runs through stances faster.
+    :param gif: name for the written animated GIF image file.
+    :param frame_rate: frame_rate for animation.
+    :dispMode: display mode; one of ['VTK', 'IPY', 'PIL'].
+    :return: gobj - graphics object
+    """
     global gRenderer
     
     opts = { 'other'      : other,
@@ -623,12 +637,16 @@ def panimate(pose, other=None, duration=5, timer_rate=60,
                   gif_file=opt.gif, 
                   frame_rate=opt.frame_rate)
         gobj.panimate(pose, other=opt.other, duration=opt.duration, **args)
+        return gobj
     elif type(gRenderer) is type(gMpl.Mpl3dArtist()):
         gobj = gMpl.Mpl3dArtist(opt.fign)
         gobj.panimate(pose, other=opt.other, duration=opt.duration, **args)
+        return gobj
     elif type(gRenderer) is type(gIpv.Ipv3dVisual()):
         gobj = gIpv.Ipv3dVisual(opt.key)
         gobj.panimate(pose, other=opt.other, duration=opt.duration, **args)
+        return gobj
+    return None
 
 def qanimate(obj, stances, unit='rad', dispMode='VTK', frame_rate=25, gif=None, **kwargs):
     global gRenderer

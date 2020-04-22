@@ -11,7 +11,7 @@ import os  # for checking values of environment variables.
 """ Matplotlib imports
 """
 import matplotlib
-matplotlib.use('Qt4Agg')
+matplotlib.use('Qt5Agg')  # comment this line if running Jupyter on MyBinder
 get_ipython().run_line_magic('matplotlib', 'notebook')
 
 """ Numerical imports
@@ -92,7 +92,7 @@ f = np.concatenate((d, b, a, e, c, d), axis=1)
 #       before being passed to animation_control (noticeable here).
 
 gIpv = GraphicsRenderer('IPV')  # sets graphics.gRenderer (to clear previous figure)
-robot.animate(stances=f, unit='deg', key=4, timer_rate=60, gif="Puma560", 
+gobj = robot.animate(stances=f, unit='deg', key=4, timer_rate=60, gif="Puma560", 
                          frame_rate=30, dispMode='IPY', limits=None)
 
 

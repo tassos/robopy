@@ -11,11 +11,12 @@ import os  # for checking values of environment variables.
 """ Matplotlib imports
 """
 import matplotlib
-matplotlib.use('Qt4Agg')
+matplotlib.use('Qt5Agg')  # comment this statement if running Jupyter on MyBinder
 get_ipython().run_line_magic('matplotlib', 'notebook')
 
-from matplotlib import rc       # needed to set Matplotlib animation._repr_html_()
-rc('animation', html='jshtml')  # Matplotlib animations will be HTML wrapped JavaScript
+from matplotlib import rc        # needed to set Matplotlib animation._repr_html_()
+rc('animation', html='jshtml')   # Matplotlib animations will be HTML wrapped JavaScript
+rc('animation', embed_limit=32)  # animation embed limit in MB
 
 import numpy as np
 
@@ -96,12 +97,13 @@ f = np.concatenate((d, b, a, e, c, d), axis=1)
 #
 # Note: Matplotlib is extremely slow at rendering of STL meshes.
 gobj.close()  # close current figure 
-robot.animate(stances=f, unit='deg', fign=4, timer_rate=60, frame_rate=30, dispMode=dMode)
+gobj = robot.animate(stances=f, unit='deg', fign=4, timer_rate=60, frame_rate=30, dispMode=dMode)
 
 
-# In[ ]:
+# In[8]:
 
 
+# Wait until the animation completes before running this cell to create a controlled animation.
 gobj.getAnimSL()
 
 

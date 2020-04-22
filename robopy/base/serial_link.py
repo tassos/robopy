@@ -250,11 +250,11 @@ class SerialLink:
         :param gif: name for the written animated GIF image file.
         :param frame_rate: frame_rate for animation.
         :dispMode: display mode; one of ['VTK', 'IPY', 'PIL'].
-        :return: null
+        :return: gobj - graphics object
         """
-        graphics.animate(self, stances, unit=unit, timer_rate=timer_rate, gif=gif,
-                               frame_rate=frame_rate, dispMode=dispMode, **kwargs)
-        
+        gobj = graphics.animate(self, stances, unit=unit, timer_rate=timer_rate, gif=gif,
+                                 frame_rate=frame_rate, dispMode=dispMode, **kwargs)
+        return gobj
     '''
     ### moved to graphics_vtk module
     def animate(self, stances, unit='rad', frame_rate=25, gif=None):
