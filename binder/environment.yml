@@ -1,11 +1,12 @@
-name: py35_ipynb
+name: py36_ipynb
 channels:
   - conda-forge
 dependencies:
-  - python=3.5
+  - python=3.6
   - ipyvolume==0.5.1
   - ipywidgets>=7.4.0
   - ipywebrtc>=0.4
+  - pip
   - pip:
       - matplotlib>=3
       - Pillow
