@@ -255,7 +255,10 @@ def r2t(rmat):
 
     Translational component is zero.
     """
-    assert isinstance(rmat, np.matrix)
+    if type(rmat) in (RTBMatrix,):
+        rmat = np.asmatrix(rmat.to_ndarray())
+    else:
+        assert isinstance(rmat, np.matrix)
     dim = rmat.shape
     if dim[0] != dim[1]:
         raise ValueError(' Matrix Must be square ')
@@ -288,7 +291,10 @@ def t2r(tmat):
 
     Validity of rotational part is not checked
     """
-    assert isinstance(tmat, np.matrix)
+    if type(tmat) in (RTBMatrix,):
+        tmat = np.asmatrix(tmat.to_ndarray())
+    else:
+        assert isinstance(tmat, np.matrix)
     dim = tmat.shape
     if dim[0] != dim[1]:
         raise ValueError(' Matrix Must be square ')
