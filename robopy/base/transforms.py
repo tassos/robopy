@@ -918,7 +918,7 @@ def tr2rpy(tr, unit='rad', order='zyx'):
                     rpy[2] = -math.atan2(tr[1, 0], tr[2, 0])
             else:
                 rpy[0] = -math.atan2(tr[0, 1], tr[0, 0])
-                rpy[1] = math.atan2(tr[0, 2] * math.cos(rpy[0, 0]), tr[0, 0])
+                rpy[1] = math.atan2(tr[0, 2] * math.cos(rpy[0]), tr[0, 0])
                 rpy[2] = -math.atan2(tr[1, 2], tr[2, 2])
         if order == 'zyx' or order == 'vehicle':
             if abs(abs(tr[2, 0]) - 1) < eps:
