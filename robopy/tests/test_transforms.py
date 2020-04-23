@@ -20,7 +20,7 @@ from ..base import transforms
 # rotx | complete
 class TestRotx(unittest.TestCase):
     def test_transforms_3d_rotx_validData_returnDatatype(self):
-        self.assertIsInstance(transforms.rotx(0),transforms.RTBMatrix)
+        self.assertIsInstance(transforms.rotx(0), transforms.RTBMatrix)
 
     def test_transforms_3d_rotx_validData_returnData_dimension(self):
         dimensions = transforms.rotx(0).shape

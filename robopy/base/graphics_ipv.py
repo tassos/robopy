@@ -602,7 +602,7 @@ class GraphicsIPV(Graphics):
             fig.animation = frame_step_msec
             fig.animation_exponent = 1.0
             self.VBox = VBox([p3.gcc()])
-        ## ^^^
+        ### ^^^
 
         # render frames
         for n in range(0, nframes):
