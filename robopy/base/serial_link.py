@@ -235,7 +235,7 @@ class Link(ABC):
         :param alpha:
         :param offset:
         :param kind: 'r' or 'p' as input. 'r' for Revolute. 'p' for Prismatic.
-        :param mdh:
+        :param mdh: Modified DH parameters. If 1, modified parameters will be considered.
         :param flip:
         :param qlim:
         """
@@ -275,6 +275,11 @@ class Link(ABC):
                                 [st, ct * ca, -ct * sa, self.a * st],
                                 [0, sa, ca, d],
                                 [0, 0, 0, 1]])
+        elif self.mdh == 1:
+            se3_np = np.matrix([[ct, -st, 0, self.a],
+                                [st * ca, ct * ca, -sa, -d * sa],
+                                [st * sa, ct * sa, ca, d * ca],
+                                [0, 0, 0, 1]])
 
         return se3_np
 
@@ -284,7 +289,7 @@ class Revolute(Link):
     Revolute object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset, qlim):
+    def __init__(self, j, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
         """
         Initialised revolute object.
         :param j:
@@ -295,7 +300,7 @@ class Revolute(Link):
         :param offset:
         :param qlim:
         """
-        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='r', qlim=qlim)
+        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='r', mdh=mdh, flip=flip, qlim=qlim)
         pass
 
 
@@ -304,7 +309,7 @@ class Prismatic(Link):
     Prismatic object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset, qlim):
+    def __init__(self, j, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
         """
         Initialises prismatic object.
         :param j:
@@ -315,7 +320,7 @@ class Prismatic(Link):
         :param offset:
         :param qlim:
         """
-        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='p', qlim=qlim)
+        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='p', mdh=mdh, flip=flip, qlim=qlim)
         pass
 
     pass
