@@ -13,6 +13,7 @@ from .graphics import axesCubeFloor
 from .graphics import vtk_named_colors
 import pkg_resources
 from scipy.optimize import minimize
+from itkwidgets import view
 
 
 class SerialLink:
@@ -133,7 +134,7 @@ class SerialLink:
         else:
             return np.asmatrix(sol.x)
 
-    def plot(self, stance, unit='rad'):
+    def plot(self, stance, unit='rad', itkwidget=False):
         """
         Plots the SerialLink object in a desired stance.
         :param stance: list of joint angles for SerialLink object.
@@ -151,18 +152,22 @@ class SerialLink:
 
         self.fkine(stance, apply_stance=True, actor_list=self.pipeline.actor_list)
 
-        cube_axes = axesCubeFloor(self.pipeline.ren,
-                                  self.param.get("cube_axes_x_bounds"),
-                                  self.param.get("cube_axes_y_bounds"),
-                                  self.param.get("cube_axes_z_bounds"),
-                                  self.param.get("floor_position"))
+        if itkwidget:
+            viewer = view(axes=True, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
+            return viewer
+        else:
+            cube_axes = axesCubeFloor(self.pipeline.ren,
+                                    self.param.get("cube_axes_x_bounds"),
+                                    self.param.get("cube_axes_y_bounds"),
+                                    self.param.get("cube_axes_z_bounds"),
+                                    self.param.get("floor_position"))
 
-        self.pipeline.add_actor(cube_axes)
+            self.pipeline.add_actor(cube_axes)
 
-        for each in self.pipeline.actor_list:
-            each.SetScale(self.scale)
+            for each in self.pipeline.actor_list:
+                each.SetScale(self.scale)
 
-        self.pipeline.render()
+            self.pipeline.render()
 
     def __setup_pipeline_objs(self):
         """
@@ -178,6 +183,7 @@ class SerialLink:
             reader_list[i].SetFileName(loc)
             mapper_list[i] = vtk.vtkPolyDataMapper()
             mapper_list[i].SetInputConnection(reader_list[i].GetOutputPort())
+            mapper_list[i].Update()
             actor_list[i] = vtk.vtkActor()
             actor_list[i].SetMapper(mapper_list[i])
             actor_list[i].GetProperty().SetColor(self.colors[i])  # (R,G,B)
