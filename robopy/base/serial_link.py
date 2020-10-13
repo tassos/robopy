@@ -162,7 +162,7 @@ class SerialLink:
         else:
             return np.asmatrix(sol.x)
 
-    def plot(self, stance, unit='rad', itkwidget=False):
+    def plot(self, stance, unit='rad', itkwidget=True):
         """
         Plots the SerialLink object in a desired stance.
         :param stance: list of joint angles for SerialLink object.
