@@ -219,13 +219,12 @@ class SerialLink:
         self.pipeline.iren.AddObserver('TimerEvent', execute)
         self.pipeline.animate()
 
-
 class Link(ABC):
     """
     Link object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset=None, kind='', mdh=0, flip=None, qlim=None):
+    def __init__(self, theta, d, a, alpha, offset=None, kind='', mdh=0, flip=None, qlim=None):
         """
         initialises the link object.
         :param j:
@@ -241,7 +240,6 @@ class Link(ABC):
         """
         self.theta = theta
         self.d = d
-        # self.j = j
         self.a = a
         self.alpha = alpha
         self.offset = offset
@@ -289,7 +287,7 @@ class Revolute(Link):
     Revolute object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
+    def __init__(self, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
         """
         Initialised revolute object.
         :param j:
@@ -300,7 +298,7 @@ class Revolute(Link):
         :param offset:
         :param qlim:
         """
-        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='r', mdh=mdh, flip=flip, qlim=qlim)
+        super().__init__(theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='r', mdh=mdh, flip=flip, qlim=qlim)
         pass
 
 
@@ -309,7 +307,7 @@ class Prismatic(Link):
     Prismatic object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
+    def __init__(self, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
         """
         Initialises prismatic object.
         :param j:
@@ -320,7 +318,7 @@ class Prismatic(Link):
         :param offset:
         :param qlim:
         """
-        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='p', mdh=mdh, flip=flip, qlim=qlim)
+        super().__init__(theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='p', mdh=mdh, flip=flip, qlim=qlim)
         pass
 
     pass
