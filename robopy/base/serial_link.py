@@ -32,6 +32,8 @@ class SerialLink:
         """
         self.pipeline = None
         self.links = links
+        # If no stl files are provided, a default stick figure will be drawn
+        self.stl_files = stl_files
         if q is None:
             self.q = np.matrix([0 for each in links])
         if base is None:
@@ -45,17 +47,12 @@ class SerialLink:
             assert (type(tool) is np.matrix) and (tool.shape == (4, 4))
             self.tool = tool
         # Following arguments initialised by plot function and animate functions only
-        if stl_files is None:
-            # Default stick figure model code goes here
-            pass
-        else:
-            self.stl_files = stl_files
         if name is None:
             self.name = ''
         else:
             self.name = name
         if colors is None:
-            self.colors = vtk_named_colors(["Grey"] * len(stl_files))
+            self.colors = vtk_named_colors(["Red", "DarkGreen", "Blue", "Cyan", "Magenta", "Yellow", "White", "Green"])
         else:
             self.colors = colors
         if param is None:
@@ -133,7 +130,7 @@ class SerialLink:
         else:
             return np.asmatrix(sol.x)
 
-    def plot(self, stance, unit='rad'):
+    def plot(self, stance, unit='rad', jupyter=False):
         """
         Plots the SerialLink object in a desired stance.
         :param stance: list of joint angles for SerialLink object.
@@ -148,39 +145,95 @@ class SerialLink:
 
         self.pipeline = VtkPipeline()
         self.pipeline.reader_list, self.pipeline.actor_list, self.pipeline.mapper_list = self.__setup_pipeline_objs()
-
         self.fkine(stance, apply_stance=True, actor_list=self.pipeline.actor_list)
 
-        cube_axes = axesCubeFloor(self.pipeline.ren,
-                                  self.param.get("cube_axes_x_bounds"),
-                                  self.param.get("cube_axes_y_bounds"),
-                                  self.param.get("cube_axes_z_bounds"),
-                                  self.param.get("floor_position"))
+        if jupyter:
+            viewer = view(actors=self.pipeline.actor_list)
+            return viewer
+        else:
+            cube_axes = axesCubeFloor(self.pipeline.ren,
+                                    self.param.get("cube_axes_x_bounds"),
+                                    self.param.get("cube_axes_y_bounds"),
+                                    self.param.get("cube_axes_z_bounds"),
+                                    self.param.get("floor_position"))
 
-        self.pipeline.add_actor(cube_axes)
+            self.pipeline.add_actor(cube_axes)
 
-        for each in self.pipeline.actor_list:
-            each.SetScale(self.scale)
+            # for each in self.pipeline.actor_list:
+            #     each.SetScale(self.scale)
 
-        self.pipeline.render()
+            self.pipeline.render()
 
     def __setup_pipeline_objs(self):
         """
         Internal function to initialise vtk objects.
         :return: reader_list, actor_list, mapper_list
         """
-        reader_list = [0] * len(self.stl_files)
-        actor_list = [0] * len(self.stl_files)
-        mapper_list = [0] * len(self.stl_files)
-        for i in range(len(self.stl_files)):
-            reader_list[i] = vtk.vtkSTLReader()
-            loc = pkg_resources.resource_filename("robopy", '/'.join(('media', self.name, self.stl_files[i])))
-            reader_list[i].SetFileName(loc)
+        if self.stl_files is not None:
+            reader_list = [0] * len(self.stl_files)
+            actor_list  = [0] * len(self.stl_files)
+            mapper_list = [0] * len(self.stl_files)
+        else:
+            reader_list = [0] * (len(self.links))
+            actor_list  = [0] * (len(self.links))
+            mapper_list = [0] * (len(self.links))
+        for i in range(len(reader_list)):
             mapper_list[i] = vtk.vtkPolyDataMapper()
-            mapper_list[i].SetInputConnection(reader_list[i].GetOutputPort())
-            actor_list[i] = vtk.vtkActor()
-            actor_list[i].SetMapper(mapper_list[i])
-            actor_list[i].GetProperty().SetColor(self.colors[i])  # (R,G,B)
+            if self.stl_files is not None:
+                reader_list[i] = vtk.vtkSTLReader()
+                loc = pkg_resources.resource_filename("robopy", '/'.join(('media', self.name, self.stl_files[i])))
+                reader_list[i].SetFileName(loc)
+                mapper_list[i].SetInputConnection(reader_list[i].GetOutputPort())
+                mapper_list[i].Update()
+                actor_list[i] = vtk.vtkActor()
+                actor_list[i].SetMapper(mapper_list[i])
+                actor_list[i].GetProperty().SetColor(self.colors[i])
+            else:
+                points = vtk.vtkPoints()
+                points.SetNumberOfPoints(3)
+                invA = np.linalg.inv(self.links[i].A(0))
+                if i < len(reader_list)-1:
+                    points.SetPoint(0, self.links[i+1].a, 0.0, 0.0)
+                    points.SetPoint(1, 0.0, 0.0, 0.0)
+                    points.SetPoint(2, 0.0, 0.0, -self.links[i].d)
+                else:
+                    points.SetPoint(1, 0.0, 0.0, 0.0)
+                    points.SetPoint(1, 0.0, 0.0, -self.links[i].d)
+                    points.SetPoint(2, -self.tool[0,3], 0.0, -self.links[i].d)
+
+                lines = vtk.vtkCellArray()
+                lines.InsertNextCell(3)
+                lines.InsertCellPoint(0)
+                lines.InsertCellPoint(1)
+                lines.InsertCellPoint(2)
+
+                reader_list[i] = vtk.vtkPolyData()
+                reader_list[i].SetPoints(points)
+                reader_list[i].SetLines(lines)
+                mapper_list[i].SetInputData(reader_list[i])
+
+                mapper_list[i].Update()
+                actor_list[i] = vtk.vtkActor()
+                actor_list[i].SetMapper(mapper_list[i])
+                actor_list[i].GetProperty().SetColor(self.colors[i])  # (R,G,B)
+                actor_list[i].GetProperty().SetLineWidth(10)
+
+        if self.stl_files == None:
+            # Constructing the base of the robot
+            cylinder = vtk.vtkCylinderSource()
+            cylinder.SetResolution(32)
+            cylinder.SetRadius(0.2)
+            cylinder.SetHeight(0.2)
+            cylinderMapper = vtk.vtkPolyDataMapper()
+            cylinderMapper.SetInputConnection(cylinder.GetOutputPort())
+            cylinderActor = vtk.vtkActor()
+            cylinderActor.SetMapper(cylinderMapper)
+            cylinderActor.RotateX(90.0)
+            cylinderActor.AddPosition(0, 0, -0.1)
+
+            reader_list.insert(0,cylinder)
+            mapper_list.insert(0,cylinderMapper)
+            actor_list.insert(0,cylinderActor)
 
         return reader_list, actor_list, mapper_list
 
