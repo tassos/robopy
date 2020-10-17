@@ -130,7 +130,7 @@ class SerialLink:
         else:
             return np.asmatrix(sol.x)
 
-    def plot(self, stance, unit='rad', jupyter=False):
+    def plot(self, stance, unit='rad'):
         """
         Plots the SerialLink object in a desired stance.
         :param stance: list of joint angles for SerialLink object.
@@ -147,22 +147,18 @@ class SerialLink:
         self.pipeline.reader_list, self.pipeline.actor_list, self.pipeline.mapper_list = self.__setup_pipeline_objs()
         self.fkine(stance, apply_stance=True, actor_list=self.pipeline.actor_list)
 
-        if jupyter:
-            viewer = view(actors=self.pipeline.actor_list)
-            return viewer
-        else:
-            cube_axes = axesCubeFloor(self.pipeline.ren,
-                                    self.param.get("cube_axes_x_bounds"),
-                                    self.param.get("cube_axes_y_bounds"),
-                                    self.param.get("cube_axes_z_bounds"),
-                                    self.param.get("floor_position"))
+        cube_axes = axesCubeFloor(self.pipeline.ren,
+                                self.param.get("cube_axes_x_bounds"),
+                                self.param.get("cube_axes_y_bounds"),
+                                self.param.get("cube_axes_z_bounds"),
+                                self.param.get("floor_position"))
 
-            self.pipeline.add_actor(cube_axes)
+        self.pipeline.add_actor(cube_axes)
 
-            # for each in self.pipeline.actor_list:
-            #     each.SetScale(self.scale)
+        for each in self.pipeline.actor_list:
+            each.SetScale(self.scale)
 
-            self.pipeline.render()
+        self.pipeline.render()
 
     def __setup_pipeline_objs(self):
         """
@@ -226,6 +222,7 @@ class SerialLink:
             cylinder.SetHeight(0.2)
             cylinderMapper = vtk.vtkPolyDataMapper()
             cylinderMapper.SetInputConnection(cylinder.GetOutputPort())
+            cylinderMapper.Update()
             cylinderActor = vtk.vtkActor()
             cylinderActor.SetMapper(cylinderMapper)
             cylinderActor.RotateX(90.0)
