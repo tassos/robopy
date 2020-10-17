@@ -13,6 +13,7 @@ from .graphics import axesCubeFloor
 from .graphics import vtk_named_colors
 import pkg_resources
 from scipy.optimize import minimize
+from itkwidgets import view
 
 
 class SerialLink:
@@ -103,6 +104,35 @@ class SerialLink:
             actor_list[self.length].SetUserMatrix(transforms.np2vtk(t))
         return t
 
+    def jacobian(self, q, unit='rad'):
+        """
+        Calculates the geometric jacobian of the robot, for specific joint coordinates 'q'.
+        :param q: The joint coordinates for which the jacobian is calculated
+        :param uni: unit of input joint coordinates
+        """
+        if type(q) is np.ndarray:
+            q = np.asmatrix(q)
+        jacobian = np.zeros((6,self.length+1))
+        i = 0
+        t = self.base
+        On = self.fkine(q,unit=unit)[0:3,3].A1
+        zi = t[0:3,2].A1
+        Oi = t[0:3,3].A1
+        jacobian[:3,i] = np.cross(zi,On-Oi)
+        jacobian[3:,i] = zi
+        for link in self:
+            i += 1
+            t = t * link.A(q[:,0])
+            zi = t[0:3,2].A1
+            Oi = t[0:3,3].A1
+            if link.kind == 'r':
+                jacobian[:3,i] = np.cross(zi,On-Oi)
+                jacobian[3:,i] = zi
+            elif link.kind == 'p':
+                jacobian[:3,i] = zi
+                jacobian[3:,i] = np.zeros((3,1))
+        return jacobian[:,:-1]
+
     def ikine(self, T, q0=None, unit='rad'):
         """
         Calculates inverse kinematics for homogeneous transformation matrix using numerical optimisation method.
@@ -119,7 +149,6 @@ class SerialLink:
         omega = np.diag([1, 1, 1, 3 / reach])
         if q0 is None:
             q0 = np.asmatrix(np.zeros((1, self.length)))
-
         def objective(x):
             return (
                 np.square(((np.linalg.lstsq(T, self.fkine(x))[0]) - np.asmatrix(np.eye(4, 4))) * omega)).sum()
@@ -130,7 +159,7 @@ class SerialLink:
         else:
             return np.asmatrix(sol.x)
 
-    def plot(self, stance, unit='rad'):
+    def plot(self, stance, unit='rad', itkwidget=False):
         """
         Plots the SerialLink object in a desired stance.
         :param stance: list of joint angles for SerialLink object.
@@ -147,18 +176,23 @@ class SerialLink:
         self.pipeline.reader_list, self.pipeline.actor_list, self.pipeline.mapper_list = self.__setup_pipeline_objs()
         self.fkine(stance, apply_stance=True, actor_list=self.pipeline.actor_list)
 
-        cube_axes = axesCubeFloor(self.pipeline.ren,
-                                self.param.get("cube_axes_x_bounds"),
-                                self.param.get("cube_axes_y_bounds"),
-                                self.param.get("cube_axes_z_bounds"),
-                                self.param.get("floor_position"))
 
-        self.pipeline.add_actor(cube_axes)
+        if itkwidget:
+            viewer = view(axes=True, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
+            return viewer
+        else:
+            cube_axes = axesCubeFloor(self.pipeline.ren,
+                                    self.param.get("cube_axes_x_bounds"),
+                                    self.param.get("cube_axes_y_bounds"),
+                                    self.param.get("cube_axes_z_bounds"),
+                                    self.param.get("floor_position"))
 
-        for each in self.pipeline.actor_list:
-            each.SetScale(self.scale)
+            self.pipeline.add_actor(cube_axes)
 
-        self.pipeline.render()
+            for each in self.pipeline.actor_list:
+                each.SetScale(self.scale)
+
+            self.pipeline.render()
 
     def __setup_pipeline_objs(self):
         """
