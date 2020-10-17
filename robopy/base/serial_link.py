@@ -178,7 +178,7 @@ class SerialLink:
 
 
         if itkwidget:
-            viewer = view(axes=True, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
+            viewer = view(axes=False, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
             return viewer
         else:
             cube_axes = axesCubeFloor(self.pipeline.ren,
@@ -221,7 +221,6 @@ class SerialLink:
             else:
                 points = vtk.vtkPoints()
                 points.SetNumberOfPoints(3)
-                invA = np.linalg.inv(self.links[i].A(0))
                 if i < len(reader_list)-1:
                     points.SetPoint(0, self.links[i+1].a, 0.0, 0.0)
                     points.SetPoint(1, 0.0, 0.0, 0.0)
