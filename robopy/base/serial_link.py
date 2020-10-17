@@ -189,8 +189,8 @@ class SerialLink:
 
             self.pipeline.add_actor(cube_axes)
 
-            for each in self.pipeline.actor_list:
-                each.SetScale(self.scale)
+            # for each in self.pipeline.actor_list:
+            #     each.SetScale(self.scale)
 
             self.pipeline.render()
 
@@ -229,7 +229,7 @@ class SerialLink:
                 else:
                     points.SetPoint(1, 0.0, 0.0, 0.0)
                     points.SetPoint(1, 0.0, 0.0, -self.links[i].d)
-                    points.SetPoint(2, -self.tool[0,3], 0.0, -self.links[i].d)
+                    points.SetPoint(2, -self.tool[0,3], -self.tool[1,3], -self.links[i].d)
 
                 lines = vtk.vtkCellArray()
                 lines.InsertNextCell(3)
