@@ -13,7 +13,6 @@ from .graphics import axesCubeFloor
 from .graphics import vtk_named_colors
 import pkg_resources
 from scipy.optimize import minimize
-from itkwidgets import view
 
 
 class SerialLink:
@@ -178,6 +177,8 @@ class SerialLink:
 
 
         if itkwidget:
+            from itkwidgets import view
+
             viewer = view(axes=False, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
             return viewer
         else:
