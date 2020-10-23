@@ -227,7 +227,7 @@ class SerialLink:
                     points.SetPoint(1, 0.0, 0.0, 0.0)
                     points.SetPoint(2, 0.0, 0.0, -self.links[i].d)
                 else:
-                    points.SetPoint(1, 0.0, 0.0, 0.0)
+                    points.SetPoint(0, 0.0, 0.0, 0.0)
                     points.SetPoint(1, 0.0, 0.0, -self.links[i].d)
                     points.SetPoint(2, -self.tool[0,3], -self.tool[1,3], -self.links[i].d)
 
