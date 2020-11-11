@@ -13,7 +13,6 @@ from .graphics import axesCubeFloor
 from .graphics import vtk_named_colors
 import pkg_resources
 from scipy.optimize import minimize
-from itkwidgets import view
 
 
 class SerialLink:
@@ -33,6 +32,8 @@ class SerialLink:
         """
         self.pipeline = None
         self.links = links
+        # If no stl files are provided, a default stick figure will be drawn
+        self.stl_files = stl_files
         if q is None:
             self.q = np.matrix([0 for each in links])
         if base is None:
@@ -46,17 +47,12 @@ class SerialLink:
             assert (type(tool) is np.matrix) and (tool.shape == (4, 4))
             self.tool = tool
         # Following arguments initialised by plot function and animate functions only
-        if stl_files is None:
-            # Default stick figure model code goes here
-            pass
-        else:
-            self.stl_files = stl_files
         if name is None:
             self.name = ''
         else:
             self.name = name
         if colors is None:
-            self.colors = vtk_named_colors(["Grey"] * len(stl_files))
+            self.colors = vtk_named_colors(["Red", "DarkGreen", "Blue", "Cyan", "Magenta", "Yellow", "White", "Green"])
         else:
             self.colors = colors
         if param is None:
@@ -177,11 +173,13 @@ class SerialLink:
 
         self.pipeline = VtkPipeline()
         self.pipeline.reader_list, self.pipeline.actor_list, self.pipeline.mapper_list = self.__setup_pipeline_objs()
-
         self.fkine(stance, apply_stance=True, actor_list=self.pipeline.actor_list)
 
+
         if itkwidget:
-            viewer = view(axes=True, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
+            from itkwidgets import view
+
+            viewer = view(axes=False, ui_collapsed=True, actors=self.pipeline.actor_list, geometries=[], geometry_colors=[], geometry_opacities=[])
             return viewer
         else:
             cube_axes = axesCubeFloor(self.pipeline.ren,
@@ -192,8 +190,8 @@ class SerialLink:
 
             self.pipeline.add_actor(cube_axes)
 
-            for each in self.pipeline.actor_list:
-                each.SetScale(self.scale)
+            # for each in self.pipeline.actor_list:
+            #     each.SetScale(self.scale)
 
             self.pipeline.render()
 
@@ -202,19 +200,71 @@ class SerialLink:
         Internal function to initialise vtk objects.
         :return: reader_list, actor_list, mapper_list
         """
-        reader_list = [0] * len(self.stl_files)
-        actor_list = [0] * len(self.stl_files)
-        mapper_list = [0] * len(self.stl_files)
-        for i in range(len(self.stl_files)):
-            reader_list[i] = vtk.vtkSTLReader()
-            loc = pkg_resources.resource_filename("robopy", '/'.join(('media', self.name, self.stl_files[i])))
-            reader_list[i].SetFileName(loc)
+        if self.stl_files is not None:
+            reader_list = [0] * len(self.stl_files)
+            actor_list  = [0] * len(self.stl_files)
+            mapper_list = [0] * len(self.stl_files)
+        else:
+            reader_list = [0] * (len(self.links))
+            actor_list  = [0] * (len(self.links))
+            mapper_list = [0] * (len(self.links))
+        for i in range(len(reader_list)):
             mapper_list[i] = vtk.vtkPolyDataMapper()
-            mapper_list[i].SetInputConnection(reader_list[i].GetOutputPort())
-            mapper_list[i].Update()
-            actor_list[i] = vtk.vtkActor()
-            actor_list[i].SetMapper(mapper_list[i])
-            actor_list[i].GetProperty().SetColor(self.colors[i])  # (R,G,B)
+            if self.stl_files is not None:
+                reader_list[i] = vtk.vtkSTLReader()
+                loc = pkg_resources.resource_filename("robopy", '/'.join(('media', self.name, self.stl_files[i])))
+                reader_list[i].SetFileName(loc)
+                mapper_list[i].SetInputConnection(reader_list[i].GetOutputPort())
+                mapper_list[i].Update()
+                actor_list[i] = vtk.vtkActor()
+                actor_list[i].SetMapper(mapper_list[i])
+                actor_list[i].GetProperty().SetColor(self.colors[i])
+            else:
+                points = vtk.vtkPoints()
+                points.SetNumberOfPoints(3)
+                if i < len(reader_list)-1:
+                    points.SetPoint(0, self.links[i+1].a, 0.0, 0.0)
+                    points.SetPoint(1, 0.0, 0.0, 0.0)
+                    points.SetPoint(2, 0.0, 0.0, -self.links[i].d)
+                else:
+                    points.SetPoint(0, 0.0, 0.0, 0.0)
+                    points.SetPoint(1, 0.0, 0.0, -self.links[i].d)
+                    points.SetPoint(2, -self.tool[0,3], -self.tool[1,3], -self.links[i].d)
+
+                lines = vtk.vtkCellArray()
+                lines.InsertNextCell(3)
+                lines.InsertCellPoint(0)
+                lines.InsertCellPoint(1)
+                lines.InsertCellPoint(2)
+
+                reader_list[i] = vtk.vtkPolyData()
+                reader_list[i].SetPoints(points)
+                reader_list[i].SetLines(lines)
+                mapper_list[i].SetInputData(reader_list[i])
+
+                mapper_list[i].Update()
+                actor_list[i] = vtk.vtkActor()
+                actor_list[i].SetMapper(mapper_list[i])
+                actor_list[i].GetProperty().SetColor(self.colors[i])  # (R,G,B)
+                actor_list[i].GetProperty().SetLineWidth(10)
+
+        if self.stl_files == None:
+            # Constructing the base of the robot
+            cylinder = vtk.vtkCylinderSource()
+            cylinder.SetResolution(32)
+            cylinder.SetRadius(0.2)
+            cylinder.SetHeight(0.2)
+            cylinderMapper = vtk.vtkPolyDataMapper()
+            cylinderMapper.SetInputConnection(cylinder.GetOutputPort())
+            cylinderMapper.Update()
+            cylinderActor = vtk.vtkActor()
+            cylinderActor.SetMapper(cylinderMapper)
+            cylinderActor.RotateX(90.0)
+            cylinderActor.AddPosition(0, 0, -0.1)
+
+            reader_list.insert(0,cylinder)
+            mapper_list.insert(0,cylinderMapper)
+            actor_list.insert(0,cylinderActor)
 
         return reader_list, actor_list, mapper_list
 
@@ -253,13 +303,12 @@ class SerialLink:
         self.pipeline.iren.AddObserver('TimerEvent', execute)
         self.pipeline.animate()
 
-
 class Link(ABC):
     """
     Link object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset=None, kind='', mdh=0, flip=None, qlim=None):
+    def __init__(self, theta, d, a, alpha, offset=None, kind='', mdh=0, flip=None, qlim=None):
         """
         initialises the link object.
         :param j:
@@ -269,13 +318,12 @@ class Link(ABC):
         :param alpha:
         :param offset:
         :param kind: 'r' or 'p' as input. 'r' for Revolute. 'p' for Prismatic.
-        :param mdh:
+        :param mdh: Modified DH parameters. If 1, modified parameters will be considered.
         :param flip:
         :param qlim:
         """
         self.theta = theta
         self.d = d
-        # self.j = j
         self.a = a
         self.alpha = alpha
         self.offset = offset
@@ -309,6 +357,11 @@ class Link(ABC):
                                 [st, ct * ca, -ct * sa, self.a * st],
                                 [0, sa, ca, d],
                                 [0, 0, 0, 1]])
+        elif self.mdh == 1:
+            se3_np = np.matrix([[ct, -st, 0, self.a],
+                                [st * ca, ct * ca, -sa, -d * sa],
+                                [st * sa, ct * sa, ca, d * ca],
+                                [0, 0, 0, 1]])
 
         return se3_np
 
@@ -318,7 +371,7 @@ class Revolute(Link):
     Revolute object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset, qlim):
+    def __init__(self, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
         """
         Initialised revolute object.
         :param j:
@@ -329,7 +382,7 @@ class Revolute(Link):
         :param offset:
         :param qlim:
         """
-        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='r', qlim=qlim)
+        super().__init__(theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='r', mdh=mdh, flip=flip, qlim=qlim)
         pass
 
 
@@ -338,7 +391,7 @@ class Prismatic(Link):
     Prismatic object class.
     """
 
-    def __init__(self, j, theta, d, a, alpha, offset, qlim):
+    def __init__(self, theta, d, a, alpha, offset, qlim, mdh=0, flip=0):
         """
         Initialises prismatic object.
         :param j:
@@ -349,7 +402,7 @@ class Prismatic(Link):
         :param offset:
         :param qlim:
         """
-        super().__init__(j=j, theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='p', qlim=qlim)
+        super().__init__(theta=theta, d=d, a=a, alpha=alpha, offset=offset, kind='p', mdh=mdh, flip=flip, qlim=qlim)
         pass
 
     pass

@@ -24,13 +24,13 @@ class Puma560(SerialLink):
             "floor_position": np.matrix([[0, -0.7, 0]])
         }
 
-        links = [Revolute(d=0, a=0, alpha=pi / 2, j=0, theta=0, offset=0, qlim=(-160 * pi / 180, 160 * pi / 180)),
-                 Revolute(d=0, a=0.4318, alpha=0, j=0, theta=0, offset=0, qlim=(-45 * pi / 180, 225 * pi / 180)),
-                 Revolute(d=0.15005, a=0.0203, alpha=-pi / 2, j=0, theta=0, offset=0,
+        links = [Revolute(d=0, a=0, alpha=pi / 2, theta=0, offset=0, qlim=(-160 * pi / 180, 160 * pi / 180)),
+                 Revolute(d=0, a=0.4318, alpha=0, theta=0, offset=0, qlim=(-45 * pi / 180, 225 * pi / 180)),
+                 Revolute(d=0.15005, a=0.0203, alpha=-pi / 2, theta=0, offset=0,
                           qlim=(-225 * pi / 180, 45 * pi / 180)),
-                 Revolute(d=0.4318, a=0, alpha=pi / 2, j=0, theta=0, offset=0, qlim=(-110 * pi / 180, 170 * pi / 180)),
-                 Revolute(d=0, a=0, alpha=-pi / 2, j=0, theta=0, offset=0, qlim=(-100 * pi / 180, 100 * pi / 180)),
-                 Revolute(d=0, a=0, alpha=0, j=0, theta=0, offset=0, qlim=(-226 * pi / 180, 226 * pi / 180))]
+                 Revolute(d=0.4318, a=0, alpha=pi / 2, theta=0, offset=0, qlim=(-110 * pi / 180, 170 * pi / 180)),
+                 Revolute(d=0, a=0, alpha=-pi / 2, theta=0, offset=0, qlim=(-100 * pi / 180, 100 * pi / 180)),
+                 Revolute(d=0, a=0, alpha=0, theta=0, offset=0, qlim=(-226 * pi / 180, 226 * pi / 180))]
 
         if base is None:
             base = tr.trotx(-90, unit='deg')
@@ -51,12 +51,12 @@ class Orion5(SerialLink):
         # TODO
 
         # Turret, Shoulder, Elbow, Wrist, Claw
-        links = [Revolute(d=0, a=0, alpha=0, j=0, theta=0, offset=0, qlim=0),  # Turret
-                 Revolute(d=0.53, a=-0.30309, alpha=0, j=0, theta=0, offset=0, qlim=0),  # Shoulder
-                 Revolute(d=0, a=-1.70384, alpha=0, j=0, theta=0, offset=0, qlim=0),  # Elbow
-                 Revolute(d=0, a=-1.36307, alpha=0, j=0, theta=0, offset=0, qlim=0),  # Wrist
-                 Revolute(d=0, a=0, alpha=0, j=0, theta=0, offset=0, qlim=0),
-                 Revolute(d=0, a=0, alpha=0, j=0, theta=0, offset=0, qlim=0)]
+        links = [Revolute(d=0, a=0, alpha=0, theta=0, offset=0, qlim=0),  # Turret
+                 Revolute(d=0.53, a=-0.30309, alpha=0, theta=0, offset=0, qlim=0),  # Shoulder
+                 Revolute(d=0, a=-1.70384, alpha=0, theta=0, offset=0, qlim=0),  # Elbow
+                 Revolute(d=0, a=-1.36307, alpha=0, theta=0, offset=0, qlim=0),  # Wrist
+                 Revolute(d=0, a=0, alpha=0, theta=0, offset=0, qlim=0),
+                 Revolute(d=0, a=0, alpha=0, theta=0, offset=0, qlim=0)]
 
         if base is None:
             base = tr.trotx(-90, unit='deg')
